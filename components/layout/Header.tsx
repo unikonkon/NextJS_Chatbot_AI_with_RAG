@@ -49,9 +49,11 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-1">
+        ข้อมูลสินค้า
         <Button variant="ghost" size="icon" onClick={onToggleKnowledge} title="Knowledge Base">
           <Database size={16} />
         </Button>
+        ล้างข้อมูล
         <Button variant="ghost" size="icon" onClick={onClearChat} title="Clear Chat">
           <Trash2 size={16} />
         </Button>

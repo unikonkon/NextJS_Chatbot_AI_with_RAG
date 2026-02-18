@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, MessageSquare, X } from "lucide-react";
+import { Plus, Trash2, MessageSquare, X, TriangleAlert, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { Conversation } from "@/lib/db/chat-history";
 
@@ -42,6 +43,23 @@ export function ChatSidebar({
   onSelect,
   onDelete,
 }: ChatSidebarProps) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const confirmConv = confirmId
+    ? conversations.find((c) => c.id === confirmId)
+    : null;
+
+  const handleConfirmDelete = async () => {
+    if (!confirmId) return;
+    setIsDeleting(true);
+    onDelete(confirmId);
+    // small delay for animation feel
+    await new Promise((r) => setTimeout(r, 600));
+    setIsDeleting(false);
+    setConfirmId(null);
+  };
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-black/40 backdrop-blur-xl border-r border-white/10">
       {/* Header */}
@@ -116,12 +134,12 @@ export function ChatSidebar({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDelete(conv.id);
+                      setConfirmId(conv.id);
                     }}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10 text-white/30 hover:text-red-400 cursor-pointer"
                     title="ลบ"
                   >
-                    <Trash2 size={12} />
+                    <Trash2 size={18} />
                   </button>
                 </div>
               </button>
@@ -170,6 +188,110 @@ export function ChatSidebar({
               {sidebarContent}
             </motion.aside>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm delete modal */}
+      <AnimatePresence>
+        {confirmId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-100 flex items-center justify-center p-4"
+            onClick={() => !isDeleting && setConfirmId(null)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-xs rounded-2xl border border-white/10 bg-[#0c0c0c] shadow-2xl overflow-hidden"
+            >
+              {/* Loading overlay */}
+              <AnimatePresence>
+                {isDeleting && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#0c0c0c]/90 backdrop-blur-sm"
+                  >
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                    >
+                      <Loader2 size={28} className="text-red-400" />
+                    </motion.div>
+                    <p className="text-xs text-white/60">กำลังลบ...</p>
+                    <div className="w-32 h-1 rounded-full bg-white/10 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full bg-red-500"
+                        initial={{ width: "0%" }}
+                        animate={{ width: "100%" }}
+                        transition={{ duration: 0.6, ease: "easeInOut" }}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="p-5 space-y-4">
+                {/* Icon */}
+                <div className="flex justify-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", damping: 12, stiffness: 200 }}
+                    className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center"
+                  >
+                    <TriangleAlert size={22} className="text-red-400" />
+                  </motion.div>
+                </div>
+
+                {/* Text */}
+                <div className="text-center space-y-1">
+                  <h4 className="text-sm font-semibold text-white/90">
+                    ลบบทสนทนานี้?
+                  </h4>
+                  {confirmConv && (
+                    <p className="text-xs text-white/50 leading-relaxed">
+                      &ldquo;
+                      <span className="text-white/70 font-medium">
+                        {confirmConv.title}
+                      </span>
+                      &rdquo;
+                      <br />
+                      <span className="text-white/30">
+                        ({confirmConv.messages.length} ข้อความ)
+                      </span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConfirmId(null)}
+                    disabled={isDeleting}
+                    className="flex-1 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white/80 transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={handleConfirmDelete}
+                    disabled={isDeleting}
+                    className="flex-1 rounded-xl bg-red-500/15 border border-red-500/30 px-3 py-2 text-xs text-red-400 hover:bg-red-500/25 transition-colors cursor-pointer disabled:opacity-40 font-medium"
+                  >
+                    ลบ
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>

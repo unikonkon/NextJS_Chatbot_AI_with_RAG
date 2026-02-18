@@ -91,7 +91,7 @@ export function ChatContainer({
       )}
 
       {/* Input area */}
-      <div className="p-4 pt-2">
+      <div className="p-4 pt-2 mx-6">
         <ChatInput
           onSend={sendMessage}
           isLoading={isLoading}

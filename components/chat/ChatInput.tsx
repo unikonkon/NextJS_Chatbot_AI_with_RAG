@@ -55,7 +55,7 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
         disabled={isLoading || disabled}
         rows={1}
         className={cn(
-          "flex-1 resize-none bg-transparent text-sm text-white placeholder-white/30 outline-none px-3 py-2 max-h-[120px]",
+          "flex-1 resize-none bg-transparent text-sm text-white placeholder-white/30 outline-none px-3 py-2 max-h-[170px] pr-10",
           (isLoading || disabled) && "opacity-50"
         )}
       />

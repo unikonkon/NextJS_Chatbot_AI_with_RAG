@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { getAllCustomProducts } from "@/lib/db/custom-products";
+import { MAX_PRODUCTS } from "@/lib/utils/constants";
 
 interface RAGStatus {
   isReady: boolean;
@@ -8,6 +10,9 @@ interface RAGStatus {
   error: string | null;
   productsCount: number;
   embeddingsCount: number;
+  baseProductsCount: number;
+  customProductsCount: number;
+  maxProducts: number;
 }
 
 export function useRAG() {
@@ -17,6 +22,9 @@ export function useRAG() {
     error: null,
     productsCount: 0,
     embeddingsCount: 0,
+    baseProductsCount: 0,
+    customProductsCount: 0,
+    maxProducts: MAX_PRODUCTS,
   });
 
   const initialize = useCallback(async () => {
@@ -25,6 +33,7 @@ export function useRAG() {
     setStatus((prev) => ({ ...prev, isInitializing: true, error: null }));
 
     try {
+      // Initialize base KB
       const res = await fetch("/api/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -43,7 +52,34 @@ export function useRAG() {
         error: null,
         productsCount: data.productsCount,
         embeddingsCount: data.embeddingsCount,
+        baseProductsCount: data.baseProductsCount ?? data.productsCount,
+        customProductsCount: data.customProductsCount ?? 0,
+        maxProducts: data.maxProducts ?? MAX_PRODUCTS,
       });
+
+      // After base init, load custom products from IDB
+      try {
+        const customProducts = await getAllCustomProducts();
+        if (customProducts.length > 0) {
+          const appendRes = await fetch("/api/knowledge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "append", products: customProducts }),
+          });
+
+          if (appendRes.ok) {
+            const appendData = await appendRes.json();
+            setStatus((prev) => ({
+              ...prev,
+              productsCount: appendData.total,
+              customProductsCount: appendData.customProductsCount,
+              embeddingsCount: appendData.total, // each product = 1 embedding
+            }));
+          }
+        }
+      } catch {
+        // silently fail — custom products will not load
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Initialization failed";
       setStatus((prev) => ({

@@ -2,9 +2,10 @@
 
 import { openDB, type IDBPDatabase } from "idb";
 import type { Message } from "@/types/chat";
+import type { Product } from "@/types/knowledge";
 
 const DB_NAME = "rag-chatbot";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export interface RAGDatabase {
   "embedding-cache": {
@@ -26,6 +27,10 @@ export interface RAGDatabase {
       updatedAt: number;
     };
   };
+  "custom-products": {
+    key: string;
+    value: Product;
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<RAGDatabase>> | null = null;
@@ -39,6 +44,9 @@ export function getDB() {
         }
         if (!db.objectStoreNames.contains("chat-history")) {
           db.createObjectStore("chat-history");
+        }
+        if (!db.objectStoreNames.contains("custom-products")) {
+          db.createObjectStore("custom-products");
         }
       },
     });

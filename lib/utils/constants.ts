@@ -1,3 +1,4 @@
+export const MAX_PRODUCTS = 500;
 export const DEFAULT_TOP_K = 5;
 export const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
 export const DEFAULT_TEMPERATURE = 0.7;

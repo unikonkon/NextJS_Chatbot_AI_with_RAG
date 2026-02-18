@@ -17,7 +17,11 @@ import type { Product } from "@/types/knowledge";
 
 // ─── Data Preview (Main) ────────────────────────────────────────
 
-export function DataPreview() {
+interface DataPreviewProps {
+  refreshKey?: number;
+}
+
+export function DataPreview({ refreshKey = 0 }: DataPreviewProps) {
   const [data, setData] = useState<{
     productsCount: number;
     products: Product[];
@@ -32,7 +36,7 @@ export function DataPreview() {
       .then((res) => res.json())
       .then(setData)
       .catch(() => {});
-  }, []);
+  }, [refreshKey]);
 
   const categories = useMemo(() => {
     if (!data) return [];
@@ -68,7 +72,7 @@ export function DataPreview() {
     <>
       <Card className="space-y-3 p-3!">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        {/* <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database size={14} className="text-orange-400" />
             <span className="text-xs font-medium text-white/70">
@@ -78,7 +82,7 @@ export function DataPreview() {
           <span className="text-[10px] text-white/30 tabular-nums">
             {filtered.length}/{data.productsCount} items
           </span>
-        </div>
+        </div> */}
 
         {/* Search */}
         <div className="relative">

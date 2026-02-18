@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Database, X } from "lucide-react";
 import { JsonUploader } from "./JsonUploader";
@@ -11,6 +12,12 @@ interface KnowledgeManagerProps {
 }
 
 export function KnowledgeManager({ onClose }: KnowledgeManagerProps) {
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleDataChange = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 300 }}
@@ -29,8 +36,8 @@ export function KnowledgeManager({ onClose }: KnowledgeManagerProps) {
         </Button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <JsonUploader />
-        <DataPreview />
+        <JsonUploader onDataChange={handleDataChange} />
+        <DataPreview refreshKey={refreshKey} />
       </div>
     </motion.div>
   );
