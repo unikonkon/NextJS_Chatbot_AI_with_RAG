@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { generateEmbeddings } from "@/lib/rag/embeddings-client";
+import { productsToChunks } from "@/lib/rag/chunker";
 import { getAllCustomProducts } from "@/lib/db/custom-products";
 import { MAX_PRODUCTS } from "@/lib/utils/constants";
 
@@ -33,38 +35,63 @@ export function useRAG() {
     setStatus((prev) => ({ ...prev, isInitializing: true, error: null }));
 
     try {
-      // Initialize base KB
-      const res = await fetch("/api/knowledge", {
+      // Step 1: Load KB on server (returns chunk texts)
+      const loadRes = await fetch("/api/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "initialize" }),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to initialize");
+      if (!loadRes.ok) {
+        const data = await loadRes.json();
+        throw new Error(data.error || "Failed to load knowledge base");
       }
 
-      const data = await res.json();
+      const loadData = await loadRes.json();
+
+      // Step 2: Embed chunk texts client-side
+      const vectors = await generateEmbeddings(loadData.chunkTexts);
+
+      // Step 3: Send vectors back to server
+      const storeRes = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "store-vectors", vectors }),
+      });
+
+      if (!storeRes.ok) {
+        const data = await storeRes.json();
+        throw new Error(data.error || "Failed to store embeddings");
+      }
+
+      const storeData = await storeRes.json();
+
       setStatus({
         isReady: true,
         isInitializing: false,
         error: null,
-        productsCount: data.productsCount,
-        embeddingsCount: data.embeddingsCount,
-        baseProductsCount: data.baseProductsCount ?? data.productsCount,
-        customProductsCount: data.customProductsCount ?? 0,
-        maxProducts: data.maxProducts ?? MAX_PRODUCTS,
+        productsCount: storeData.productsCount,
+        embeddingsCount: storeData.embeddingsCount,
+        baseProductsCount: storeData.baseProductsCount ?? storeData.productsCount,
+        customProductsCount: storeData.customProductsCount ?? 0,
+        maxProducts: storeData.maxProducts ?? MAX_PRODUCTS,
       });
 
-      // After base init, load custom products from IDB
+      // Step 4: Append custom products from IndexedDB
       try {
         const customProducts = await getAllCustomProducts();
         if (customProducts.length > 0) {
+          const chunks = productsToChunks(customProducts);
+          const customVectors = await generateEmbeddings(chunks.map((c) => c.text));
+
           const appendRes = await fetch("/api/knowledge", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "append", products: customProducts }),
+            body: JSON.stringify({
+              action: "append",
+              products: customProducts,
+              vectors: customVectors,
+            }),
           });
 
           if (appendRes.ok) {
@@ -73,7 +100,7 @@ export function useRAG() {
               ...prev,
               productsCount: appendData.total,
               customProductsCount: appendData.customProductsCount,
-              embeddingsCount: appendData.total, // each product = 1 embedding
+              embeddingsCount: appendData.total,
             }));
           }
         }

@@ -1,4 +1,3 @@
-import { embedText } from "./embedding";
 import { retrieveTopK } from "./retriever";
 import { generateResponse, generateResponseStream } from "./generator";
 import { buildAugmentedPrompt } from "./prompt-template";
@@ -22,14 +21,12 @@ const defaultOptions: RAGOptions = {
 
 export async function runRAGPipeline(
   question: string,
+  queryVector: number[],
   options: Partial<RAGOptions> = {}
 ): Promise<RAGResult> {
   const opts = { ...defaultOptions, ...options };
 
-  // Step 1: Embed the question
-  const queryVector = await embedText(question);
-
-  // Step 2: Retrieve relevant chunks
+  // Step 1: Retrieve relevant chunks using pre-computed query vector
   const store = getKnowledgeStore();
   const embeddedChunks = store.getEmbeddedChunks();
 
@@ -58,13 +55,13 @@ export async function runRAGPipeline(
     };
   }
 
-  // Step 3: Build augmented prompt
+  // Step 2: Build augmented prompt
   const prompt = buildAugmentedPrompt(question, retrievalResults);
 
-  // Step 4: Generate response
+  // Step 3: Generate response
   const answer = await generateResponse(prompt, opts.temperature);
 
-  // Step 5: Build sources with match explanation
+  // Step 4: Build sources with match explanation
   const vectorDimensions = queryVector.length;
   const sources: SourceReference[] = retrievalResults.map((r, i) => ({
     productId: r.chunk.metadata.productId,
@@ -94,11 +91,10 @@ export async function runRAGPipeline(
 
 export async function* runRAGPipelineStream(
   question: string,
+  queryVector: number[],
   options: Partial<RAGOptions> = {}
 ): AsyncGenerator<{ type: "text" | "sources" | "done"; data: string }> {
   const opts = { ...defaultOptions, ...options };
-
-  const queryVector = await embedText(question);
 
   const store = getKnowledgeStore();
   const embeddedChunks = store.getEmbeddedChunks();

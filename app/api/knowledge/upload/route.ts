@@ -26,13 +26,16 @@ export async function POST(request: NextRequest) {
 
     const store = getKnowledgeStore();
     await store.loadFromKnowledgeBase(kb);
-    await store.embedAllChunks();
+
+    // Return chunk texts for client-side embedding
+    const chunkTexts = store.getChunkTexts();
 
     return Response.json({
       success: true,
+      needsEmbedding: true,
       documentsCount: kb.products.length,
-      chunksCount: store.getChunks().length,
-      embeddingsCount: store.getEmbeddedChunks().length,
+      chunksCount: chunkTexts.length,
+      chunkTexts,
     });
   } catch (error) {
     console.error("Upload API error:", error);

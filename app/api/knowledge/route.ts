@@ -22,12 +22,16 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    let body: { action?: string; products?: unknown[] } = {};
+    let body: {
+      action?: string;
+      products?: unknown[];
+      vectors?: number[][];
+    } = {};
     try {
       body = await request.json();
     } catch {
       return Response.json(
-        { error: "Invalid JSON body. Send { action: 'load' | 'embed' | 'initialize' | 'append' }" },
+        { error: "Invalid JSON body." },
         { status: 400 }
       );
     }
@@ -35,45 +39,55 @@ export async function POST(request: NextRequest) {
 
     const store = getKnowledgeStore();
 
-    if (action === "load") {
+    // Load products from file, create chunks, return chunk texts for client-side embedding
+    if (action === "load" || action === "initialize") {
       const kb = await loadKnowledgeBaseFromFile();
       await store.loadFromKnowledgeBase(kb);
+      const chunkTexts = store.getChunkTexts();
+
       return Response.json({
         success: true,
-        message: "Knowledge base loaded",
+        message: "Knowledge base loaded (awaiting embeddings from client)",
         productsCount: kb.products.length,
+        chunksCount: chunkTexts.length,
+        chunkTexts,
       });
     }
 
-    if (action === "embed") {
+    // Store pre-computed vectors from client
+    if (action === "store-vectors") {
       if (!store.getStatus().isInitialized) {
         return Response.json(
           { error: "Knowledge base not loaded. Call with action='load' first." },
           { status: 400 }
         );
       }
-      await store.embedAllChunks();
+
+      if (!body.vectors || !Array.isArray(body.vectors)) {
+        return Response.json(
+          { error: "vectors array is required" },
+          { status: 400 }
+        );
+      }
+
+      store.storeVectors(body.vectors);
+
       return Response.json({
         success: true,
-        message: "Embeddings created",
+        message: "Embeddings stored",
         embeddingsCount: store.getEmbeddedChunks().length,
+        productsCount: store.getStatus().productsCount,
+        baseProductsCount: store.getStatus().baseProductsCount,
+        customProductsCount: store.getStatus().customProductsCount,
+        maxProducts: store.getStatus().maxProducts,
       });
     }
 
-    if (action === "initialize") {
-      const kb = await loadKnowledgeBaseFromFile();
-      await store.loadFromKnowledgeBase(kb);
-      await store.embedAllChunks();
-      const status = store.getStatus();
-      return Response.json({
-        success: true,
-        message: "Knowledge base loaded and embedded",
-        productsCount: status.productsCount,
-        embeddingsCount: status.embeddingsCount,
-        baseProductsCount: status.baseProductsCount,
-        customProductsCount: status.customProductsCount,
-        maxProducts: status.maxProducts,
-      });
+    if (action === "embed") {
+      return Response.json(
+        { error: "Server-side embedding is not supported. Embed client-side and use 'store-vectors'." },
+        { status: 400 }
+      );
     }
 
     if (action === "append") {
@@ -109,7 +123,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const result = await store.appendProducts(validProducts);
+      const vectors = body.vectors && Array.isArray(body.vectors) ? body.vectors : undefined;
+
+      if (!vectors) {
+        // Return chunk texts so client can embed them
+        const chunkTexts = store.getAppendChunkTexts(validProducts);
+        return Response.json({
+          success: true,
+          needsEmbedding: true,
+          chunkTexts,
+          validProductsCount: validProducts.length,
+        });
+      }
+
+      const result = await store.appendProducts(validProducts, vectors);
       const status = store.getStatus();
 
       return Response.json({
@@ -125,7 +152,7 @@ export async function POST(request: NextRequest) {
     }
 
     return Response.json(
-      { error: "Invalid action. Use 'load', 'embed', 'initialize', or 'append'" },
+      { error: "Invalid action. Use 'load', 'initialize', 'store-vectors', or 'append'" },
       { status: 400 }
     );
   } catch (error) {

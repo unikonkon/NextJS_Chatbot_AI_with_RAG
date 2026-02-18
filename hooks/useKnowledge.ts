@@ -8,6 +8,8 @@ import {
   clearCustomProducts as clearIDBCustomProducts,
 } from "@/lib/db/custom-products";
 import { KnowledgeBaseSchema, ProductSchema } from "@/lib/knowledge/schema-validator";
+import { productsToChunks } from "@/lib/rag/chunker";
+import { generateEmbeddings } from "@/lib/rag/embeddings-client";
 import type { Product } from "@/types/knowledge";
 import { z } from "zod";
 
@@ -48,11 +50,11 @@ export function useKnowledge() {
       .catch(() => {});
   }, []);
 
-  const appendToServer = useCallback(async (products: Product[]) => {
+  const appendToServer = useCallback(async (products: Product[], vectors: number[][]) => {
     const res = await fetch("/api/knowledge", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "append", products }),
+      body: JSON.stringify({ action: "append", products, vectors }),
     });
 
     if (!res.ok) {
@@ -114,7 +116,12 @@ export function useKnowledge() {
           ...prev,
           uploadProgress: `กำลังฝัง Embeddings (${products.length} สินค้า)...`,
         }));
-        const data = await appendToServer(products);
+
+        // Embed client-side
+        const chunks = productsToChunks(products);
+        const vectors = await generateEmbeddings(chunks.map((c) => c.text));
+
+        const data = await appendToServer(products, vectors);
 
         setStatus((prev) => ({
           ...prev,
@@ -146,7 +153,11 @@ export function useKnowledge() {
       const customProducts = await getAllCustomProducts();
       if (customProducts.length === 0) return;
 
-      const data = await appendToServer(customProducts);
+      // Embed client-side
+      const chunks = productsToChunks(customProducts);
+      const vectors = await generateEmbeddings(chunks.map((c) => c.text));
+
+      const data = await appendToServer(customProducts, vectors);
       setStatus((prev) => ({
         ...prev,
         productsCount: data.total,
@@ -162,19 +173,35 @@ export function useKnowledge() {
     await clearIDBCustomProducts();
     // Re-initialize base only
     try {
-      const res = await fetch("/api/knowledge", {
+      // Step 1: Load KB
+      const loadRes = await fetch("/api/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "initialize" }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setStatus((prev) => ({
-          ...prev,
-          productsCount: data.productsCount,
-          baseProductsCount: data.baseProductsCount ?? data.productsCount,
-          customProductsCount: 0,
-        }));
+
+      if (loadRes.ok) {
+        const loadData = await loadRes.json();
+
+        // Step 2: Embed client-side
+        const vectors = await generateEmbeddings(loadData.chunkTexts);
+
+        // Step 3: Store vectors
+        const storeRes = await fetch("/api/knowledge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "store-vectors", vectors }),
+        });
+
+        if (storeRes.ok) {
+          const storeData = await storeRes.json();
+          setStatus((prev) => ({
+            ...prev,
+            productsCount: storeData.productsCount,
+            baseProductsCount: storeData.baseProductsCount ?? storeData.productsCount,
+            customProductsCount: 0,
+          }));
+        }
       }
     } catch {
       // silently fail

@@ -1,26 +1,11 @@
 import { NextRequest } from "next/server";
 import { runRAGPipeline, runRAGPipelineStream } from "@/lib/rag/pipeline";
 import { getKnowledgeStore } from "@/lib/knowledge/knowledge-store";
-import { loadKnowledgeBaseFromFile } from "@/lib/knowledge/json-loader";
-
-async function ensureKnowledgeBase() {
-  const store = getKnowledgeStore();
-  if (!store.hasEmbeddings()) {
-    const status = store.getStatus();
-    if (!status.isInitialized) {
-      const kb = await loadKnowledgeBaseFromFile();
-      await store.loadFromKnowledgeBase(kb);
-    }
-    if (!status.isEmbedding && status.embeddingsCount === 0) {
-      await store.embedAllChunks();
-    }
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, options, stream } = body;
+    const { message, queryVector, options, stream } = body;
 
     if (!message || typeof message !== "string") {
       return Response.json(
@@ -29,7 +14,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await ensureKnowledgeBase();
+    if (!queryVector || !Array.isArray(queryVector)) {
+      return Response.json(
+        { error: "queryVector is required (embed the message client-side first)" },
+        { status: 400 }
+      );
+    }
+
+    const store = getKnowledgeStore();
+    if (!store.hasEmbeddings()) {
+      return Response.json(
+        { error: "Knowledge base not initialized. Please initialize first." },
+        { status: 400 }
+      );
+    }
 
     // Streaming response
     if (stream) {
@@ -37,7 +35,7 @@ export async function POST(request: NextRequest) {
       const readable = new ReadableStream({
         async start(controller) {
           try {
-            for await (const chunk of runRAGPipelineStream(message, options)) {
+            for await (const chunk of runRAGPipelineStream(message, queryVector, options)) {
               const data = `data: ${JSON.stringify(chunk)}\n\n`;
               controller.enqueue(encoder.encode(data));
             }
@@ -62,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Non-streaming response
-    const result = await runRAGPipeline(message, options);
+    const result = await runRAGPipeline(message, queryVector, options);
 
     return Response.json({
       answer: result.answer,

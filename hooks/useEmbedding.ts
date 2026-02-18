@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import {
+  generateEmbedding,
+  generateEmbeddings,
+} from "@/lib/rag/embeddings-client";
 
 export function useEmbedding() {
   const [isEmbedding, setIsEmbedding] = useState(false);
@@ -8,14 +12,7 @@ export function useEmbedding() {
   const embedText = useCallback(async (text: string): Promise<number[] | null> => {
     setIsEmbedding(true);
     try {
-      const res = await fetch("/api/embed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.vector;
+      return await generateEmbedding(text);
     } catch {
       return null;
     } finally {
@@ -26,14 +23,7 @@ export function useEmbedding() {
   const embedTexts = useCallback(async (texts: string[]): Promise<number[][] | null> => {
     setIsEmbedding(true);
     try {
-      const res = await fetch("/api/embed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texts }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.vectors;
+      return await generateEmbeddings(texts);
     } catch {
       return null;
     } finally {
