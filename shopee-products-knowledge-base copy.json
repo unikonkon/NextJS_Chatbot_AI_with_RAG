@@ -1,0 +1,172 @@
+{
+  "version": "1.0",
+  "name": "Shopee Popular Products Knowledge Base",
+  "description": "ข้อมูลสินค้ายอดนิยมจาก Shopee Thailand สำหรับใช้เป็น Knowledge Base ของ RAG Chatbot",
+  "source": "shopee.co.th",
+  "scrapedAt": "2026-02-18T10:00:00Z",
+  "totalProducts": 100,
+  "categories": [
+    "automotive",
+    "baby-kids",
+    "beauty",
+    "computing",
+    "electronics",
+    "fashion-men",
+    "fashion-women",
+    "food-beverage",
+    "gaming",
+    "health",
+    "home-appliances",
+    "pet-supplies",
+    "smartphones",
+    "sports",
+    "stationery"
+  ],
+  "products": [
+    {
+      "id": "prod-101",
+      "name": "iPhone 16 Pro Max 256GB",
+      "description": "สมาร์ทโฟน Apple iPhone 16 Pro Max จอ 6.9 นิ้ว Super Retina XDR OLED ชิป A18 Pro กล้อง 48MP+48MP+12MP รองรับ 5G USB-C แบตเตอรี่ใหญ่ขึ้น 20% รับประกันศูนย์ไทย 1 ปี",
+      "price": 52900,
+      "originalPrice": 54900,
+      "discount": "-4%",
+      "soldCount": 12500,
+      "rating": 4.9,
+      "shopName": "Apple Official Store",
+      "shopLocation": "กรุงเทพมหานคร",
+      "isMall": true,
+      "isPreferred": true,
+      "freeShipping": true,
+      "category": "smartphones",
+      "brand": "Apple",
+      "tags": [
+        "iphone",
+        "apple",
+        "smartphone",
+        "5g",
+        "flagship"
+      ],
+      "specs": {
+        "screen": "6.9 นิ้ว Super Retina XDR OLED",
+        "chip": "A18 Pro",
+        "ram": "8GB",
+        "storage": "256GB",
+        "camera": "48MP+48MP+12MP",
+        "battery": "4685 mAh",
+        "os": "iOS 18",
+        "waterproof": "IP68"
+      },
+      "warranty": "รับประกันศูนย์ไทย 1 ปี",
+      "returnPolicy": "คืนสินค้าได้ภายใน 15 วัน"
+    },
+    {
+      "id": "prod-102",
+      "name": "Samsung Galaxy S25 Ultra 512GB",
+      "description": "Samsung Galaxy S25 Ultra จอ 6.8 นิ้ว Dynamic AMOLED 2X ชิป Snapdragon 8 Elite กล้อง 200MP+50MP+10MP+12MP ปากกา S Pen Galaxy AI รับประกัน 1 ปี",
+      "price": 49990,
+      "originalPrice": 53990,
+      "discount": "-7%",
+      "soldCount": 8300,
+      "rating": 4.8,
+      "shopName": "Samsung Official Store",
+      "shopLocation": "กรุงเทพมหานคร",
+      "isMall": true,
+      "isPreferred": true,
+      "freeShipping": true,
+      "category": "smartphones",
+      "brand": "Samsung",
+      "tags": [
+        "samsung",
+        "galaxy",
+        "smartphone",
+        "5g",
+        "s-pen",
+        "ai"
+      ],
+      "specs": {
+        "screen": "6.8 นิ้ว Dynamic AMOLED 2X",
+        "chip": "Snapdragon 8 Elite",
+        "ram": "12GB",
+        "storage": "512GB",
+        "camera": "200MP+50MP+10MP+12MP",
+        "battery": "5000 mAh",
+        "os": "Android 15 / One UI 7",
+        "waterproof": "IP68"
+      },
+      "warranty": "รับประกันศูนย์ 1 ปี",
+      "returnPolicy": "คืนสินค้าได้ภายใน 15 วัน"
+    },
+    {
+      "id": "prod-103",
+      "name": "OPPO Find X8 Pro 5G",
+      "description": "OPPO Find X8 Pro จอ 6.78 นิ้ว LTPO AMOLED ชิป Dimensity 9400 กล้อง Hasselblad 50MP x4 ซูม periscope 6x แบต 5910mAh ชาร์จเร็ว 80W",
+      "price": 36990,
+      "originalPrice": 39990,
+      "discount": "-8%",
+      "soldCount": 3200,
+      "rating": 4.8,
+      "shopName": "OPPO Official Store",
+      "shopLocation": "กรุงเทพมหานคร",
+      "isMall": true,
+      "isPreferred": true,
+      "freeShipping": true,
+      "category": "smartphones",
+      "brand": "OPPO",
+      "tags": [
+        "oppo",
+        "smartphone",
+        "5g",
+        "hasselblad",
+        "camera"
+      ],
+      "specs": {
+        "screen": "6.78 นิ้ว LTPO AMOLED",
+        "chip": "Dimensity 9400",
+        "ram": "16GB",
+        "storage": "512GB",
+        "camera": "50MP x4 Hasselblad",
+        "battery": "5910 mAh",
+        "waterproof": "IP69"
+      },
+      "warranty": "รับประกันศูนย์ 1 ปี",
+      "returnPolicy": "คืนสินค้าได้ภายใน 15 วัน"
+    },
+    {
+      "id": "prod-104",
+      "name": "Xiaomi 15 Ultra 5G 16/512GB",
+      "description": "Xiaomi 15 Ultra จอ 6.73 นิ้ว 2K LTPO AMOLED ชิป Snapdragon 8 Elite กล้อง Leica 50MP ซูม 100x แบต 5500mAh ชาร์จเร็ว 90W",
+      "price": 39990,
+      "originalPrice": 42990,
+      "discount": "-7%",
+      "soldCount": 5100,
+      "rating": 4.9,
+      "shopName": "Xiaomi Official Store",
+      "shopLocation": "กรุงเทพมหานคร",
+      "isMall": true,
+      "isPreferred": true,
+      "freeShipping": true,
+      "category": "smartphones",
+      "brand": "Xiaomi",
+      "tags": [
+        "xiaomi",
+        "smartphone",
+        "5g",
+        "leica",
+        "zoom"
+      ],
+      "specs": {
+        "screen": "6.73 นิ้ว 2K LTPO AMOLED",
+        "chip": "Snapdragon 8 Elite",
+        "ram": "16GB",
+        "storage": "512GB",
+        "camera": "Leica 50MP ซูม 100x",
+        "battery": "5500 mAh",
+        "waterproof": "IP68"
+      },
+      "warranty": "รับประกันศูนย์ 1 ปี",
+      "returnPolicy": "คืนสินค้าได้ภายใน 15 วัน"
+    }
+  ]
+}
+
+

@@ -27,6 +27,11 @@ export function Header({
       className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/20 backdrop-blur-xl z-10"
     >
       <div className="flex items-center gap-3">
+        {onToggleSidebar && (
+          <Button variant="ghost" size="icon" onClick={onToggleSidebar} className="h-9 w-9">
+            <Menu size={18} />
+          </Button>
+        )}
         <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 shadow-lg shadow-orange-500/20">
           <Bot size={18} className="text-white" />
         </div>

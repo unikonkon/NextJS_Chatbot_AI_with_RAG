@@ -12,8 +12,22 @@ import { useRAG } from "@/hooks/useRAG";
 import { useScrollToBottom } from "@/hooks/useScrollToBottom";
 import { EmbeddingStatus } from "@/components/knowledge/EmbeddingStatus";
 
-export function ChatContainer() {
-  const { messages, isLoading, sendMessage, clearMessages } = useChat();
+interface ChatContainerProps {
+  conversationId: string | null;
+  onConversationCreated?: (id: string) => void;
+  onMessagesUpdated?: () => void;
+}
+
+export function ChatContainer({
+  conversationId,
+  onConversationCreated,
+  onMessagesUpdated,
+}: ChatContainerProps) {
+  const { messages, isLoading, sendMessage } = useChat({
+    conversationId,
+    onConversationCreated,
+    onMessagesUpdated,
+  });
   const { status: ragStatus, initialize } = useRAG();
   const { ref: scrollRef } = useScrollToBottom<HTMLDivElement>([messages]);
 

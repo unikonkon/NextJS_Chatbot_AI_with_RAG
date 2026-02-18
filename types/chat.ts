@@ -1,3 +1,5 @@
+export type { Conversation } from "@/lib/db/chat-history";
+
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system";

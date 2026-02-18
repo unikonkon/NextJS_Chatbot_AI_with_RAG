@@ -1,36 +1,59 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { Message, ChatState, SourceReference } from "@/types/chat";
 import { generateId } from "@/lib/utils/format";
+import {
+  createConversation,
+  getConversation,
+  updateConversation,
+} from "@/lib/db/chat-history";
 
-export function useChat() {
+interface UseChatOptions {
+  conversationId: string | null;
+  onConversationCreated?: (id: string) => void;
+  onMessagesUpdated?: () => void;
+}
+
+export function useChat(options?: UseChatOptions) {
   const [state, setState] = useState<ChatState>({
     messages: [],
     isLoading: false,
     error: null,
   });
 
-  const addMessage = useCallback((role: Message["role"], content: string, sources?: SourceReference[]) => {
-    const message: Message = {
-      id: generateId(),
-      role,
-      content,
-      timestamp: Date.now(),
-      sources,
+  const conversationId = options?.conversationId ?? null;
+  const onConversationCreated = options?.onConversationCreated;
+  const onMessagesUpdated = options?.onMessagesUpdated;
+
+  // Track the pending conversation ID for new chats
+  const pendingConvIdRef = useRef<string | null>(null);
+
+  // Load messages when conversationId changes
+  useEffect(() => {
+    if (!conversationId) {
+      setState({ messages: [], isLoading: false, error: null });
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const conv = await getConversation(conversationId);
+      if (cancelled) return;
+      if (conv) {
+        setState({ messages: conv.messages, isLoading: false, error: null });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
     };
-    setState((prev) => ({
-      ...prev,
-      messages: [...prev.messages, message],
-    }));
-    return message;
-  }, []);
+  }, [conversationId]);
 
   const sendMessage = useCallback(
     async (content: string) => {
       if (!content.trim() || state.isLoading) return;
 
-      // Add user message
       const userMessage: Message = {
         id: generateId(),
         role: "user",
@@ -38,7 +61,6 @@ export function useChat() {
         timestamp: Date.now(),
       };
 
-      // Add placeholder assistant message for streaming
       const assistantMessage: Message = {
         id: generateId(),
         role: "assistant",
@@ -113,22 +135,51 @@ export function useChat() {
         }
 
         // Finalize message
-        setState((prev) => ({
-          ...prev,
-          messages: prev.messages.map((m) =>
+        setState((prev) => {
+          const finalMessages = prev.messages.map((m) =>
             m.id === assistantMessage.id
               ? { ...m, content: fullText, sources, isStreaming: false }
               : m
-          ),
-          isLoading: false,
-        }));
+          );
+
+          // Persist to IndexedDB
+          const currentConvId = conversationId ?? pendingConvIdRef.current;
+          if (currentConvId) {
+            // Update existing conversation
+            updateConversation(currentConvId, { messages: finalMessages }).then(
+              () => onMessagesUpdated?.()
+            );
+          } else {
+            // Create new conversation
+            const newId = generateId();
+            pendingConvIdRef.current = newId;
+            const title =
+              content.length > 50 ? content.slice(0, 50) + "..." : content;
+            createConversation(newId, title, finalMessages).then(() =>
+              onConversationCreated?.(newId)
+            );
+          }
+
+          return {
+            ...prev,
+            messages: finalMessages,
+            isLoading: false,
+          };
+        });
       } catch (error) {
-        const errMsg = error instanceof Error ? error.message : "เกิดข้อผิดพลาด กรุณาลองใหม่";
+        const errMsg =
+          error instanceof Error
+            ? error.message
+            : "เกิดข้อผิดพลาด กรุณาลองใหม่";
         setState((prev) => ({
           ...prev,
           messages: prev.messages.map((m) =>
             m.id === assistantMessage.id
-              ? { ...m, content: `เกิดข้อผิดพลาด: ${errMsg}`, isStreaming: false }
+              ? {
+                  ...m,
+                  content: `เกิดข้อผิดพลาด: ${errMsg}`,
+                  isStreaming: false,
+                }
               : m
           ),
           isLoading: false,
@@ -136,11 +187,12 @@ export function useChat() {
         }));
       }
     },
-    [state.isLoading]
+    [state.isLoading, conversationId, onConversationCreated, onMessagesUpdated]
   );
 
   const clearMessages = useCallback(() => {
     setState({ messages: [], isLoading: false, error: null });
+    pendingConvIdRef.current = null;
   }, []);
 
   return {
@@ -148,7 +200,6 @@ export function useChat() {
     isLoading: state.isLoading,
     error: state.error,
     sendMessage,
-    addMessage,
     clearMessages,
   };
 }

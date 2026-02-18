@@ -1,11 +1,12 @@
 "use client";
 
 import { openDB, type IDBPDatabase } from "idb";
+import type { Message } from "@/types/chat";
 
 const DB_NAME = "rag-chatbot";
 const DB_VERSION = 1;
 
-interface RAGDatabase {
+export interface RAGDatabase {
   "embedding-cache": {
     key: string;
     value: {
@@ -19,7 +20,8 @@ interface RAGDatabase {
     key: string;
     value: {
       id: string;
-      messages: unknown[];
+      title: string;
+      messages: Message[];
       createdAt: number;
       updatedAt: number;
     };
@@ -28,7 +30,7 @@ interface RAGDatabase {
 
 let dbPromise: Promise<IDBPDatabase<RAGDatabase>> | null = null;
 
-function getDB() {
+export function getDB() {
   if (!dbPromise) {
     dbPromise = openDB<RAGDatabase>(DB_NAME, DB_VERSION, {
       upgrade(db) {

@@ -4,23 +4,49 @@ import { useState, useCallback } from "react";
 import { ChatContainer } from "@/components/chat/ChatContainer";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { ChatSidebar } from "@/components/layout/ChatSidebar";
 import { ThreeBackground } from "@/components/layout/ThreeBackground";
 import { ToastProvider } from "@/components/ui/Toast";
 import { useRAG } from "@/hooks/useRAG";
+import { useChatHistory } from "@/hooks/useChatHistory";
 
 export default function ChatPage() {
   const [showKnowledge, setShowKnowledge] = useState(false);
+  const [showChatSidebar, setShowChatSidebar] = useState(true);
   const { status: ragStatus } = useRAG();
+  const {
+    conversations,
+    activeId,
+    setActiveId,
+    startNewConversation,
+    selectConversation,
+    removeConversation,
+    refreshConversations,
+  } = useChatHistory();
 
   const toggleKnowledge = useCallback(() => {
     setShowKnowledge((prev) => !prev);
   }, []);
 
-  // clearChat will be handled inside ChatContainer via a ref or callback
-  // For now, using a simple page reload approach
-  const clearChat = useCallback(() => {
-    window.location.reload();
+  const toggleChatSidebar = useCallback(() => {
+    setShowChatSidebar((prev) => !prev);
   }, []);
+
+  const handleConversationCreated = useCallback(
+    (id: string) => {
+      setActiveId(id);
+      refreshConversations();
+    },
+    [setActiveId, refreshConversations]
+  );
+
+  const handleMessagesUpdated = useCallback(() => {
+    refreshConversations();
+  }, [refreshConversations]);
+
+  const clearChat = useCallback(() => {
+    startNewConversation();
+  }, [startNewConversation]);
 
   return (
     <ToastProvider>
@@ -30,16 +56,32 @@ export default function ChatPage() {
 
         {/* Main content */}
         <div className="relative z-10 flex h-full">
+          {/* Chat history sidebar */}
+          <ChatSidebar
+            isOpen={showChatSidebar}
+            onClose={() => setShowChatSidebar(false)}
+            conversations={conversations}
+            activeId={activeId}
+            onNewChat={startNewConversation}
+            onSelect={selectConversation}
+            onDelete={removeConversation}
+          />
+
           {/* Chat area */}
           <div className="flex-1 flex flex-col min-w-0">
             <Header
               onToggleKnowledge={toggleKnowledge}
               onClearChat={clearChat}
+              onToggleSidebar={toggleChatSidebar}
               isReady={ragStatus.isReady}
               productsCount={ragStatus.productsCount}
             />
             <div className="flex-1 min-h-0">
-              <ChatContainer />
+              <ChatContainer
+                conversationId={activeId}
+                onConversationCreated={handleConversationCreated}
+                onMessagesUpdated={handleMessagesUpdated}
+              />
             </div>
           </div>
 
