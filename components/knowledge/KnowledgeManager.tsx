@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
 import { Database, X } from "lucide-react";
 import { JsonUploader } from "./JsonUploader";
 import { DataPreview } from "./DataPreview";
@@ -19,14 +18,8 @@ export function KnowledgeManager({ onClose }: KnowledgeManagerProps) {
   }, []);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 300 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 300 }}
-      transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="w-96 h-full border-l border-white/10 bg-black/40 backdrop-blur-xl flex flex-col"
-    >
-      <div className="flex items-center justify-between p-4 border-b border-white/10">
+    <div className="w-96 h-full border-l border-white/10 bg-black/40 backdrop-blur-xl flex flex-col">
+      <div className="flex items-center justify-between p-3 border-b border-white/10">
         <div className="flex items-center gap-2">
           <Database size={16} className="text-orange-400" />
           <span className="text-sm font-medium text-white/90">Knowledge Base</span>
@@ -39,6 +32,6 @@ export function KnowledgeManager({ onClose }: KnowledgeManagerProps) {
         <JsonUploader onDataChange={handleDataChange} />
         <DataPreview refreshKey={refreshKey} />
       </div>
-    </motion.div>
+    </div>
   );
 }

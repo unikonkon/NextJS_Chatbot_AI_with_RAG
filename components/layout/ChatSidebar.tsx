@@ -70,19 +70,11 @@ export function ChatSidebar({
             variant="ghost"
             size="icon"
             onClick={() => {
-              onNewChat();
+              // onNewChat();
               onClose();
             }}
             title="แชทใหม่"
             className="h-8 w-8"
-          >
-            <Plus size={16} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="h-8 w-8 lg:hidden"
           >
             <X size={16} />
           </Button>
@@ -106,18 +98,16 @@ export function ChatSidebar({
                   onSelect(conv.id);
                   onClose();
                 }}
-                className={`w-full text-left rounded-lg px-3 py-2.5 transition-all duration-150 group cursor-pointer ${
-                  isActive
-                    ? "bg-orange-500/15 border border-orange-500/30"
-                    : "hover:bg-white/5 border border-transparent"
-                }`}
+                className={`w-full text-left rounded-lg px-3 py-2.5 transition-all duration-150 group cursor-pointer ${isActive
+                  ? "bg-orange-500/15 border border-orange-500/30"
+                  : "hover:bg-white/5 border border-transparent"
+                  }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <p
-                      className={`text-xs font-medium truncate ${
-                        isActive ? "text-orange-300" : "text-white/70"
-                      }`}
+                      className={`text-xs font-medium truncate ${isActive ? "text-orange-300" : "text-white/70"
+                        }`}
                     >
                       {conv.title}
                     </p>

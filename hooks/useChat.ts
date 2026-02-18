@@ -33,6 +33,7 @@ export function useChat(options?: UseChatOptions) {
   useEffect(() => {
     if (!conversationId) {
       setState({ messages: [], isLoading: false, error: null });
+      pendingConvIdRef.current = null;
       return;
     }
 
