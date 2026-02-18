@@ -6,26 +6,32 @@ import { EMBEDDING_MODEL } from "@/lib/utils/constants";
 let extractorPipeline: any = null;
 let loadingPromise: Promise<any> | null = null;
 
-async function getExtractor() {
-  if (extractorPipeline) return extractorPipeline;
+// Yield to the main thread so UI stays responsive
+function yieldToUI(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
+export async function loadModel(): Promise<void> {
+  if (extractorPipeline) return;
   if (loadingPromise) {
     await loadingPromise;
-    return extractorPipeline;
+    return;
   }
-
   loadingPromise = pipeline("feature-extraction", EMBEDDING_MODEL);
-
   try {
     extractorPipeline = await loadingPromise;
     console.log("Embedding model loaded successfully (client-side)");
-    return extractorPipeline;
   } catch (error) {
     console.error("Failed to load embedding model:", error);
     throw error;
   } finally {
     loadingPromise = null;
   }
+}
+
+async function getExtractor() {
+  if (!extractorPipeline) await loadModel();
+  return extractorPipeline;
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {
@@ -38,10 +44,21 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   return Array.isArray(embedding[0]) ? embedding[0] : embedding;
 }
 
-export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+export interface EmbeddingProgress {
+  current: number;
+  total: number;
+}
+
+export async function generateEmbeddings(
+  texts: string[],
+  onProgress?: (progress: EmbeddingProgress) => void
+): Promise<number[][]> {
   const vectors: number[][] = [];
-  for (const text of texts) {
-    vectors.push(await generateEmbedding(text));
+  for (let i = 0; i < texts.length; i++) {
+    vectors.push(await generateEmbedding(texts[i]));
+    onProgress?.({ current: i + 1, total: texts.length });
+    // Yield every 2 items so the browser can repaint
+    if (i % 2 === 1) await yieldToUI();
   }
   return vectors;
 }

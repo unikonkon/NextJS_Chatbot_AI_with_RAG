@@ -31,9 +31,13 @@ export function ChatContainer({
   const { status: ragStatus, initialize } = useRAG();
   const { ref: scrollRef } = useScrollToBottom<HTMLDivElement>([messages]);
 
+  // Defer initialization so the UI renders first (prevents blank/frozen screen)
   useEffect(() => {
     if (!ragStatus.isReady && !ragStatus.isInitializing) {
-      initialize();
+      const id = requestAnimationFrame(() => {
+        initialize();
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, []);
 
@@ -48,6 +52,8 @@ export function ChatContainer({
           error={ragStatus.error}
           productsCount={ragStatus.productsCount}
           embeddingsCount={ragStatus.embeddingsCount}
+          step={ragStatus.step}
+          embeddingProgress={ragStatus.embeddingProgress}
           onRetry={initialize}
         />
       )}
