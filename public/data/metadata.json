@@ -1,0 +1,18 @@
+{
+  "name": "Shopee Popular Products Knowledge Base",
+  "version": "1.0",
+  "source": "shopee.co.th",
+  "totalProducts": 100,
+  "categories": 15,
+  "brands": 70,
+  "priceRange": {
+    "min": 99,
+    "max": 62990,
+    "average": 9343,
+    "currency": "THB"
+  },
+  "embeddingModel": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+  "dimensions": 384,
+  "chunkingStrategy": "one-chunk-per-product",
+  "lastUpdated": "2026-02-18T10:00:00Z"
+}
