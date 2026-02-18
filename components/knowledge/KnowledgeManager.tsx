@@ -28,7 +28,7 @@ export function KnowledgeManager({ onClose }: KnowledgeManagerProps) {
           <X size={16} />
         </Button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <JsonUploader />
         <DataPreview />
       </div>

@@ -10,6 +10,7 @@ import {
   DEFAULT_SIMILARITY_THRESHOLD,
   DEFAULT_TEMPERATURE,
   DEFAULT_MAX_CONTEXT_LENGTH,
+  EMBEDDING_MODEL,
 } from "@/lib/utils/constants";
 
 const defaultOptions: RAGOptions = {
@@ -63,13 +64,20 @@ export async function runRAGPipeline(
   // Step 4: Generate response
   const answer = await generateResponse(prompt, opts.temperature);
 
-  // Step 5: Build sources
-  const sources: SourceReference[] = retrievalResults.map((r) => ({
+  // Step 5: Build sources with match explanation
+  const vectorDimensions = queryVector.length;
+  const sources: SourceReference[] = retrievalResults.map((r, i) => ({
     productId: r.chunk.metadata.productId,
     productName: r.chunk.metadata.productName,
     similarity: r.similarity,
     category: r.chunk.metadata.category,
     price: r.chunk.metadata.price,
+    rank: i + 1,
+    matchedChunkText: r.chunk.text,
+    embeddingModel: EMBEDDING_MODEL,
+    similarityThreshold: opts.similarityThreshold,
+    totalCandidates: embeddedChunks.length,
+    dimensions: vectorDimensions,
   }));
 
   const confidence =
@@ -122,12 +130,19 @@ export async function* runRAGPipelineStream(
 
   const prompt = buildAugmentedPrompt(question, retrievalResults);
 
-  const sources: SourceReference[] = retrievalResults.map((r) => ({
+  const vectorDimensions = queryVector.length;
+  const sources: SourceReference[] = retrievalResults.map((r, i) => ({
     productId: r.chunk.metadata.productId,
     productName: r.chunk.metadata.productName,
     similarity: r.similarity,
     category: r.chunk.metadata.category,
     price: r.chunk.metadata.price,
+    rank: i + 1,
+    matchedChunkText: r.chunk.text,
+    embeddingModel: EMBEDDING_MODEL,
+    similarityThreshold: opts.similarityThreshold,
+    totalCandidates: embeddedChunks.length,
+    dimensions: vectorDimensions,
   }));
 
   yield { type: "sources", data: JSON.stringify(sources) };

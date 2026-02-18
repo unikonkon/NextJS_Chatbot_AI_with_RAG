@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Star,
   ShoppingCart,
@@ -11,18 +12,38 @@ import {
   Undo2,
   Truck,
   BadgeCheck,
+  Brain,
+  ChevronDown,
+  Cpu,
+  Target,
+  Layers,
+  Filter,
+  Hash,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { formatPrice, formatNumber } from "@/lib/utils/format";
 import type { Product } from "@/types/knowledge";
 
+export interface MatchInfo {
+  rank: number;
+  matchedChunkText: string;
+  embeddingModel: string;
+  similarityThreshold: number;
+  totalCandidates: number;
+  dimensions: number;
+  totalMatched: number;
+}
+
 interface ProductModalProps {
   product: Product;
   similarity?: number;
+  matchInfo?: MatchInfo;
   onClose: () => void;
 }
 
-export function ProductModal({ product, similarity, onClose }: ProductModalProps) {
+export function ProductModal({ product, similarity, matchInfo, onClose }: ProductModalProps) {
+  const [showChunkText, setShowChunkText] = useState(false);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -60,6 +81,11 @@ export function ProductModal({ product, similarity, onClose }: ProductModalProps
                   Match {(similarity * 100).toFixed(0)}%
                 </Badge>
               )}
+              {matchInfo && (
+                <Badge variant="default" className="text-[9px]">
+                  Rank #{matchInfo.rank}
+                </Badge>
+              )}
             </div>
           </div>
           <button
@@ -71,7 +97,126 @@ export function ProductModal({ product, similarity, onClose }: ProductModalProps
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto max-h-[calc(85vh-64px)] p-4 space-y-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+        <div className="overflow-y-auto max-h-[calc(85vh-64px)] p-4 space-y-4">
+
+          {/* Match Analysis Section */}
+          {similarity !== undefined && matchInfo && (
+            <div className="rounded-xl bg-linear-to-r from-violet-500/8 to-blue-500/8 border border-violet-500/20 p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <Brain size={14} className="text-violet-400" />
+                <span className="text-xs font-medium text-violet-300">Match Analysis</span>
+              </div>
+
+              {/* Score visual bar */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-white/40">Cosine Similarity Score</span>
+                  <span className="text-violet-300 font-semibold text-xs">
+                    {(similarity * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${similarity * 100}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    className="h-full rounded-full bg-linear-to-r from-violet-500 to-blue-500"
+                  />
+                </div>
+                <div className="flex justify-between text-[9px] text-white/20">
+                  <span>0%</span>
+                  <span className="text-white/30">
+                    Threshold {(matchInfo.similarityThreshold * 100).toFixed(0)}%
+                  </span>
+                  <span>100%</span>
+                </div>
+              </div>
+
+              {/* Match details grid */}
+              <div className="grid grid-cols-3 gap-1.5">
+                <div className="rounded-lg bg-white/3 border border-white/5 p-2 text-center">
+                  <Target size={12} className="mx-auto text-violet-400/60 mb-1" />
+                  <p className="text-[9px] text-white/30">Rank</p>
+                  <p className="text-[11px] text-white/70 font-semibold">
+                    #{matchInfo.rank} / {matchInfo.totalMatched}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white/3 border border-white/5 p-2 text-center">
+                  <Layers size={12} className="mx-auto text-blue-400/60 mb-1" />
+                  <p className="text-[9px] text-white/30">Vector</p>
+                  <p className="text-[11px] text-white/70 font-semibold">
+                    {matchInfo.dimensions}d
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white/3 border border-white/5 p-2 text-center">
+                  <Filter size={12} className="mx-auto text-emerald-400/60 mb-1" />
+                  <p className="text-[9px] text-white/30">Candidates</p>
+                  <p className="text-[11px] text-white/70 font-semibold">
+                    {matchInfo.totalCandidates}
+                  </p>
+                </div>
+              </div>
+
+              {/* Model & method info */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="rounded-lg bg-white/3 border border-white/5 px-2.5 py-1.5">
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <Cpu size={10} className="text-white/30" />
+                    <p className="text-[9px] text-white/30">Embedding Model</p>
+                  </div>
+                  <p className="text-[10px] text-white/60 font-medium truncate">
+                    {matchInfo.embeddingModel.split("/").pop()}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white/3 border border-white/5 px-2.5 py-1.5">
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <Hash size={10} className="text-white/30" />
+                    <p className="text-[9px] text-white/30">Method</p>
+                  </div>
+                  <p className="text-[10px] text-white/60 font-medium">
+                    Cosine Similarity
+                  </p>
+                </div>
+              </div>
+
+              {/* Matched chunk text (expandable) */}
+              <div>
+                <button
+                  onClick={() => setShowChunkText(!showChunkText)}
+                  className="flex items-center gap-1 text-[10px] text-white/30 hover:text-white/50 transition-colors cursor-pointer"
+                >
+                  <span>ข้อมูลที่ใช้ในการจับคู่ (Chunk Text)</span>
+                  <ChevronDown
+                    size={10}
+                    className={`transition-transform ${showChunkText ? "rotate-180" : ""}`}
+                  />
+                </button>
+                <AnimatePresence>
+                  {showChunkText && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <pre className="mt-1.5 rounded-lg bg-black/40 border border-white/5 p-2.5 text-[10px] text-white/40 leading-relaxed whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto font-mono">
+                        {matchInfo.matchedChunkText}
+                      </pre>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Explanation text */}
+              <p className="text-[9px] text-white/20 leading-relaxed border-t border-white/5 pt-2">
+                คำถามของคุณถูกแปลงเป็น vector {matchInfo.dimensions} มิติ
+                โดยโมเดล {matchInfo.embeddingModel.split("/").pop()} แล้วเปรียบเทียบกับสินค้า {matchInfo.totalCandidates} รายการ
+                ด้วย Cosine Similarity — สินค้านี้ได้คะแนน {(similarity * 100).toFixed(1)}%
+                (อันดับ #{matchInfo.rank} จาก {matchInfo.totalMatched} ผลลัพธ์ที่ผ่านเกณฑ์ {(matchInfo.similarityThreshold * 100).toFixed(0)}%)
+              </p>
+            </div>
+          )}
+
           {/* Price Section */}
           <div className="rounded-xl bg-linear-to-r from-orange-500/10 to-red-500/10 border border-orange-500/20 p-3">
             <div className="flex items-baseline gap-2">

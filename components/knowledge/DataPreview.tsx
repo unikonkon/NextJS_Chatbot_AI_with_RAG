@@ -110,7 +110,7 @@ export function DataPreview() {
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
-                className="absolute z-20 mt-1 w-full max-h-[180px] overflow-y-auto rounded-xl bg-[#111] border border-white/10 py-1 shadow-xl scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10"
+                className="absolute z-20 mt-1 w-full max-h-[180px] overflow-y-auto rounded-xl bg-[#111] border border-white/10 py-1 shadow-xl"
               >
                 <button
                   onClick={() => { setSelectedCategory("all"); setShowCategoryMenu(false); }}
@@ -137,7 +137,7 @@ export function DataPreview() {
         </div>
 
         {/* Product List */}
-        <div className="space-y-1 max-h-[calc(100vh-420px)] overflow-y-auto pr-0.5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+        <div className="space-y-1 max-h-[calc(100vh-420px)] overflow-y-auto pr-0.5">
           {filtered.length === 0 && (
             <p className="text-[11px] text-white/30 text-center py-4">
               ไม่พบสินค้าที่ตรงกับการค้นหา

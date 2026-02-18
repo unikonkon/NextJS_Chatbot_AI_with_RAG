@@ -13,6 +13,13 @@ export interface SourceReference {
   similarity: number;
   category: string;
   price: number;
+  // Match explanation
+  rank: number;
+  matchedChunkText: string;
+  embeddingModel: string;
+  similarityThreshold: number;
+  totalCandidates: number;
+  dimensions: number;
 }
 
 export interface ChatState {

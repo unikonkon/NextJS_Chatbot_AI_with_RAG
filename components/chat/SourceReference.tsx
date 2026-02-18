@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Tag, Loader2 } from "lucide-react";
+import { Package, Tag, Loader2, Brain, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { ProductModal } from "@/components/ui/ProductModal";
 import { formatSimilarity } from "@/lib/utils/format";
@@ -18,8 +18,9 @@ let productsCache: Product[] | null = null;
 
 export function SourceReference({ sources }: SourceReferenceProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedSimilarity, setSelectedSimilarity] = useState<number>(0);
+  const [selectedSource, setSelectedSource] = useState<SourceRefType | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [showMatchInfo, setShowMatchInfo] = useState(false);
 
   const handleClick = useCallback(async (source: SourceRefType) => {
     setLoadingId(source.productId);
@@ -36,7 +37,7 @@ export function SourceReference({ sources }: SourceReferenceProps) {
       const product = productsCache?.find((p) => p.id === source.productId);
       if (product) {
         setSelectedProduct(product);
-        setSelectedSimilarity(source.similarity);
+        setSelectedSource(source);
       }
     } catch {
       // silently fail
@@ -46,6 +47,8 @@ export function SourceReference({ sources }: SourceReferenceProps) {
   }, []);
 
   if (!sources || sources.length === 0) return null;
+
+  const topSource = sources[0];
 
   return (
     <>
@@ -81,20 +84,95 @@ export function SourceReference({ sources }: SourceReferenceProps) {
                 {source.productName}
               </span>
               <Badge variant="default" className="text-[9px] px-1.5 py-0">
-                {formatSimilarity(source.similarity)}
+                #{source.rank} {formatSimilarity(source.similarity)}
               </Badge>
             </motion.button>
           ))}
         </div>
+
+        {/* Match Analysis Toggle */}
+        <button
+          onClick={() => setShowMatchInfo(!showMatchInfo)}
+          className="mt-2 flex items-center gap-1 text-[10px] text-white/25 hover:text-white/50 transition-colors cursor-pointer"
+        >
+          <Brain size={10} />
+          <span>วิธีการจับคู่ (Match Analysis)</span>
+          <ChevronDown
+            size={10}
+            className={`transition-transform ${showMatchInfo ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        <AnimatePresence>
+          {showMatchInfo && topSource && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-1.5 rounded-lg bg-white/3 border border-white/8 p-2.5 space-y-1.5">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
+                  <div className="flex justify-between">
+                    <span className="text-white/30">Method</span>
+                    <span className="text-white/60 font-medium">Cosine Similarity</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/30">Model</span>
+                    <span className="text-white/60 font-medium truncate ml-1">
+                      {topSource.embeddingModel?.split("/").pop() || "MiniLM-L12"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/30">Dimensions</span>
+                    <span className="text-white/60 font-medium">{topSource.dimensions || 384}d</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/30">Threshold</span>
+                    <span className="text-white/60 font-medium">
+                      {topSource.similarityThreshold
+                        ? `${(topSource.similarityThreshold * 100).toFixed(0)}%`
+                        : "30%"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/30">Candidates</span>
+                    <span className="text-white/60 font-medium">{topSource.totalCandidates || "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/30">Matched</span>
+                    <span className="text-white/60 font-medium">{sources.length} results</span>
+                  </div>
+                </div>
+                <p className="text-[9px] text-white/20 leading-relaxed pt-1 border-t border-white/5">
+                  คำถามของคุณถูกแปลงเป็น vector {topSource.dimensions || 384} มิติ แล้วเปรียบเทียบกับสินค้า {topSource.totalCandidates || "—"} รายการ
+                  ด้วย Cosine Similarity เลือกผลลัพธ์ที่เกิน {topSource.similarityThreshold ? `${(topSource.similarityThreshold * 100).toFixed(0)}` : "30"}% มาแสดง
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* Product Detail Modal */}
       <AnimatePresence>
-        {selectedProduct && (
+        {selectedProduct && selectedSource && (
           <ProductModal
             product={selectedProduct}
-            similarity={selectedSimilarity}
-            onClose={() => setSelectedProduct(null)}
+            similarity={selectedSource.similarity}
+            matchInfo={{
+              rank: selectedSource.rank,
+              matchedChunkText: selectedSource.matchedChunkText,
+              embeddingModel: selectedSource.embeddingModel,
+              similarityThreshold: selectedSource.similarityThreshold,
+              totalCandidates: selectedSource.totalCandidates,
+              dimensions: selectedSource.dimensions,
+              totalMatched: sources.length,
+            }}
+            onClose={() => {
+              setSelectedProduct(null);
+              setSelectedSource(null);
+            }}
           />
         )}
       </AnimatePresence>
