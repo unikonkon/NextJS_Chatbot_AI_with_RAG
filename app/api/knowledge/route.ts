@@ -9,14 +9,7 @@ export async function GET() {
 
     return Response.json({
       ...status,
-      products: store.getProducts().map((p) => ({
-        id: p.id,
-        name: p.name,
-        category: p.category,
-        brand: p.brand,
-        price: p.price,
-        rating: p.rating,
-      })),
+      products: store.getProducts(),
     });
   } catch (error) {
     console.error("Knowledge API error:", error);
