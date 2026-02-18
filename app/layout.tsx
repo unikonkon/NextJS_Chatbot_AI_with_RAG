@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Shopee AI Assistant - RAG Chatbot",
+  title: "ผู้ช่วย AI — แชทบอทอัจฉริยะ",
   description:
-    "AI Shopping Assistant with RAG - ค้นหา เปรียบเทียบ และแนะนำสินค้ายอดนิยมจาก Shopee Thailand",
+    "ผู้ช่วย AI สำหรับค้นหา เปรียบเทียบ และแนะนำสินค้ายอดนิยมจาก Shopee Thailand",
 };
 
 export default function RootLayout({
@@ -25,9 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
       </body>
     </html>

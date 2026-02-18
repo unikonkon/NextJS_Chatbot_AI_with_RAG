@@ -11,8 +11,8 @@ export function TypingIndicator() {
       exit={{ opacity: 0, y: -12 }}
       className="flex gap-3 max-w-[85%]"
     >
-      <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-violet-500 to-indigo-500">
-        <Bot size={16} className="text-white" />
+      <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-white/10">
+        <Bot size={16} className="text-white/70" />
       </div>
       <div className="rounded-2xl rounded-tl-sm bg-white/[0.07] border border-white/10 px-4 py-3 flex items-center gap-1.5">
         {[0, 1, 2].map((i) => (

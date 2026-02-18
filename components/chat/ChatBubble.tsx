@@ -24,18 +24,18 @@ export function ChatBubble({ role, children, isStreaming }: ChatBubbleProps) {
         className={cn(
           "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
           isUser
-            ? "bg-gradient-to-br from-orange-500 to-red-500"
-            : "bg-gradient-to-br from-violet-500 to-indigo-500"
+            ? "bg-sky-500/15"
+            : "bg-orange-500/10"
         )}
       >
-        {isUser ? <User size={16} className="text-white" /> : <Bot size={16} className="text-white" />}
+        {isUser ? <User size={16} className="text-white/70" /> : <Bot size={16} className="text-white/70" />}
       </div>
       <div
         className={cn(
           "rounded-2xl px-4 py-3 text-sm leading-relaxed",
           isUser
-            ? "bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-tr-sm"
-            : "bg-white/[0.07] text-white/90 border border-white/10 rounded-tl-sm",
+            ? "bg-white/10 text-white rounded-tr-sm"
+            : "bg-white/[0.05] text-white/90 border border-white/8 rounded-tl-sm",
           isStreaming && "animate-pulse-subtle"
         )}
       >

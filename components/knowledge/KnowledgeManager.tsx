@@ -22,7 +22,7 @@ export function KnowledgeManager({ onClose }: KnowledgeManagerProps) {
       <div className="flex items-center justify-between p-3 border-b border-white/10">
         <div className="flex items-center gap-2">
           <Database size={16} className="text-orange-400" />
-          <span className="text-sm font-medium text-white/90">Knowledge Base</span>
+          <span className="text-sm font-medium text-white/90">ฐานข้อมูลสินค้า</span>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X size={16} />

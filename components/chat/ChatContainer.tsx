@@ -307,12 +307,11 @@ export function ChatContainer({
                 </svg>
               </div>
 
-              <h2 className="text-lg font-semibold text-white/90">
-                Shopee AI Shopping Assistant
+              <h2 className="text-lg font-semibold text-white/80">
+                สวัสดี, มีอะไรให้ช่วยไหม?
               </h2>
-              <p className="text-sm text-white/50 max-w-md mx-auto">
-                ถามเกี่ยวกับสินค้ายอดนิยมจาก Shopee ได้เลย!
-                ค้นหา เปรียบเทียบ แนะนำสินค้า ตามงบประมาณ
+              <p className="text-sm text-white/40 max-w-sm mx-auto leading-relaxed">
+                ถามเกี่ยวกับสินค้าได้เลย — ค้นหา เปรียบเทียบ แนะนำสินค้าตามงบประมาณ
               </p>
             </div>
           </div>

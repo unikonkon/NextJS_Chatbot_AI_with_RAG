@@ -173,7 +173,7 @@ export function DataPreview({ refreshKey = 0 }: DataPreviewProps) {
                     {product.rating}
                   </span>
                   <span className="text-[9px] text-white/20">
-                    {formatNumber(product.soldCount)} sold
+                    ขายแล้ว {formatNumber(product.soldCount)}
                   </span>
                 </div>
               </div>

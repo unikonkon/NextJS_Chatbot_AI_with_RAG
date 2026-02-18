@@ -104,13 +104,13 @@ export function ProductModal({ product, similarity, matchInfo, onClose }: Produc
             <div className="rounded-xl bg-linear-to-r from-violet-500/8 to-blue-500/8 border border-violet-500/20 p-3 space-y-3">
               <div className="flex items-center gap-2">
                 <Brain size={14} className="text-violet-400" />
-                <span className="text-xs font-medium text-violet-300">Match Analysis</span>
+                <span className="text-xs font-medium text-violet-300">วิเคราะห์การจับคู่</span>
               </div>
 
               {/* Score visual bar */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-white/40">Cosine Similarity Score</span>
+                  <span className="text-white/40">คะแนนความคล้ายคลึง</span>
                   <span className="text-violet-300 font-semibold text-xs">
                     {(similarity * 100).toFixed(1)}%
                   </span>
@@ -126,7 +126,7 @@ export function ProductModal({ product, similarity, matchInfo, onClose }: Produc
                 <div className="flex justify-between text-[9px] text-white/20">
                   <span>0%</span>
                   <span className="text-white/30">
-                    Threshold {(matchInfo.similarityThreshold * 100).toFixed(0)}%
+                    เกณฑ์ขั้นต่ำ {(matchInfo.similarityThreshold * 100).toFixed(0)}%
                   </span>
                   <span>100%</span>
                 </div>
@@ -136,21 +136,21 @@ export function ProductModal({ product, similarity, matchInfo, onClose }: Produc
               <div className="grid grid-cols-3 gap-1.5">
                 <div className="rounded-lg bg-white/3 border border-white/5 p-2 text-center">
                   <Target size={12} className="mx-auto text-violet-400/60 mb-1" />
-                  <p className="text-[9px] text-white/30">Rank</p>
+                  <p className="text-[9px] text-white/30">อันดับ</p>
                   <p className="text-[11px] text-white/70 font-semibold">
                     #{matchInfo.rank} / {matchInfo.totalMatched}
                   </p>
                 </div>
                 <div className="rounded-lg bg-white/3 border border-white/5 p-2 text-center">
                   <Layers size={12} className="mx-auto text-blue-400/60 mb-1" />
-                  <p className="text-[9px] text-white/30">Vector</p>
+                  <p className="text-[9px] text-white/30">เวกเตอร์</p>
                   <p className="text-[11px] text-white/70 font-semibold">
                     {matchInfo.dimensions}d
                   </p>
                 </div>
                 <div className="rounded-lg bg-white/3 border border-white/5 p-2 text-center">
                   <Filter size={12} className="mx-auto text-emerald-400/60 mb-1" />
-                  <p className="text-[9px] text-white/30">Candidates</p>
+                  <p className="text-[9px] text-white/30">ตัวเลือก</p>
                   <p className="text-[11px] text-white/70 font-semibold">
                     {matchInfo.totalCandidates}
                   </p>
@@ -162,7 +162,7 @@ export function ProductModal({ product, similarity, matchInfo, onClose }: Produc
                 <div className="rounded-lg bg-white/3 border border-white/5 px-2.5 py-1.5">
                   <div className="flex items-center gap-1 mb-0.5">
                     <Cpu size={10} className="text-white/30" />
-                    <p className="text-[9px] text-white/30">Embedding Model</p>
+                    <p className="text-[9px] text-white/30">โมเดล Embedding</p>
                   </div>
                   <p className="text-[10px] text-white/60 font-medium truncate">
                     {matchInfo.embeddingModel.split("/").pop()}
@@ -171,7 +171,7 @@ export function ProductModal({ product, similarity, matchInfo, onClose }: Produc
                 <div className="rounded-lg bg-white/3 border border-white/5 px-2.5 py-1.5">
                   <div className="flex items-center gap-1 mb-0.5">
                     <Hash size={10} className="text-white/30" />
-                    <p className="text-[9px] text-white/30">Method</p>
+                    <p className="text-[9px] text-white/30">วิธีการ</p>
                   </div>
                   <p className="text-[10px] text-white/60 font-medium">
                     Cosine Similarity

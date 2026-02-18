@@ -32,17 +32,17 @@ export function Header({
             <Menu size={18} />
           </Button>
         )}
-        <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 shadow-lg shadow-orange-500/20 shrink-0">
-          <Bot size={16} className="text-white sm:w-[18px] sm:h-[18px]" />
+        <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/10 shrink-0">
+          <Bot size={16} className="text-white/70 sm:w-[18px] sm:h-[18px]" />
         </div>
         <div className="min-w-0">
           <h1 className="text-xs sm:text-sm font-semibold text-white/90 leading-tight truncate">
-            Shopee AI Assistant
+            ผู้ช่วย AI
           </h1>
           <div className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isReady ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isReady ? "bg-emerald-400" : "bg-white/30 animate-pulse"}`} />
             <span className="text-[10px] text-white/40 truncate">
-              {isReady ? `${productsCount} products` : "Initializing..."}
+              {isReady ? `${productsCount} สินค้า` : "กำลังเริ่มต้น..."}
             </span>
           </div>
         </div>
@@ -54,7 +54,7 @@ export function Header({
           variant="ghost"
           size="icon"
           onClick={onToggleKnowledge}
-          title="Knowledge Base"
+          title="ฐานข้อมูล"
           className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3 sm:gap-1.5"
         >
           <Database size={16} />

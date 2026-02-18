@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050505;
-  --foreground: #ededed;
+  --background: #0a0a0a;
+  --foreground: #e5e5e5;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans, system-ui, -apple-system, sans-serif);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -16,22 +16,20 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-family: var(--font-sans);
   overflow: hidden;
 }
 
-/* ─── Global Scrollbar ─────────────────────────────────────── */
+/* ─── Scrollbar ───────────────────────────────────────────── */
 
-/* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.06) transparent;
 }
 
-/* Webkit (Chrome, Safari, Edge) */
 *::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 
 *::-webkit-scrollbar-track {
@@ -39,17 +37,12 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 9999px;
-  transition: background 0.2s;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-*::-webkit-scrollbar-thumb:active {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 *::-webkit-scrollbar-corner {
@@ -58,7 +51,6 @@ body {
 
 /* ─── Animations ───────────────────────────────────────────── */
 
-/* Pulse subtle for streaming */
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.85; }
@@ -71,6 +63,6 @@ body {
 /* ─── Selection ────────────────────────────────────────────── */
 
 ::selection {
-  background: rgba(249, 115, 22, 0.3);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
 }

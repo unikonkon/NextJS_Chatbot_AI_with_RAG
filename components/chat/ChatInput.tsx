@@ -65,7 +65,7 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
         className={cn(
           "flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 cursor-pointer",
           input.trim() && !isLoading && !disabled
-            ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-105 active:scale-95"
+            ? "bg-white/15 text-white hover:bg-white/20 active:scale-95"
             : "bg-white/5 text-white/20"
         )}
       >

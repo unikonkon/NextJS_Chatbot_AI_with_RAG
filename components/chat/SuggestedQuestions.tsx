@@ -28,9 +28,9 @@ export function SuggestedQuestions({ onSelect, visible = true }: SuggestedQuesti
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
           onClick={() => onSelect(q)}
-          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60 hover:text-white/90 hover:bg-white/10 hover:border-orange-500/30 transition-all duration-200 cursor-pointer"
+          className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/8 hover:border-white/15 transition-all duration-200 cursor-pointer"
         >
-          <Sparkles size={10} className="text-orange-400" />
+          <Sparkles size={10} className="text-white/30" />
           {q}
         </motion.button>
       ))}

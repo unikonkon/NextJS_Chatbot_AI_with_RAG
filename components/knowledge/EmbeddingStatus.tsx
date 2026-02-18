@@ -28,13 +28,13 @@ export function EmbeddingStatus({
       >
         <AlertCircle size={18} className="text-red-400 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-red-300 font-medium">Initialization Error</p>
+          <p className="text-xs text-red-300 font-medium">เกิดข้อผิดพลาดในการเริ่มต้น</p>
           <p className="text-[11px] text-red-300/70 truncate">{error}</p>
         </div>
         {onRetry && (
           <Button variant="ghost" size="sm" onClick={onRetry}>
             <RefreshCw size={14} />
-            Retry
+            ลองใหม่
           </Button>
         )}
       </motion.div>

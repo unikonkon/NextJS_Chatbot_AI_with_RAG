@@ -60,7 +60,7 @@ export function SourceReference({ sources }: SourceReferenceProps) {
       >
         <p className="text-[10px] uppercase tracking-wider text-white/40 mb-2 flex items-center gap-1">
           <Tag size={10} />
-          Sources (กดเพื่อดูรายละเอียด)
+          แหล่งข้อมูล (กดเพื่อดูรายละเอียด)
         </p>
         <div className="flex flex-wrap gap-1.5">
           {sources.map((source, i) => (
@@ -114,21 +114,21 @@ export function SourceReference({ sources }: SourceReferenceProps) {
               <div className="mt-1.5 rounded-lg bg-white/3 border border-white/8 p-2.5 space-y-1.5">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
                   <div className="flex justify-between">
-                    <span className="text-white/30">Method</span>
+                    <span className="text-white/30">วิธีการ</span>
                     <span className="text-white/60 font-medium">Cosine Similarity</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-white/30">Model</span>
+                    <span className="text-white/30">โมเดล</span>
                     <span className="text-white/60 font-medium truncate ml-1">
                       {topSource.embeddingModel?.split("/").pop() || "MiniLM-L12"}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-white/30">Dimensions</span>
+                    <span className="text-white/30">มิติ</span>
                     <span className="text-white/60 font-medium">{topSource.dimensions || 384}d</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-white/30">Threshold</span>
+                    <span className="text-white/30">เกณฑ์ขั้นต่ำ</span>
                     <span className="text-white/60 font-medium">
                       {topSource.similarityThreshold
                         ? `${(topSource.similarityThreshold * 100).toFixed(0)}%`
@@ -136,12 +136,12 @@ export function SourceReference({ sources }: SourceReferenceProps) {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-white/30">Candidates</span>
+                    <span className="text-white/30">ตัวเลือกทั้งหมด</span>
                     <span className="text-white/60 font-medium">{topSource.totalCandidates || "—"}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-white/30">Matched</span>
-                    <span className="text-white/60 font-medium">{sources.length} results</span>
+                    <span className="text-white/30">ผลลัพธ์</span>
+                    <span className="text-white/60 font-medium">{sources.length} รายการ</span>
                   </div>
                 </div>
                 <p className="text-[9px] text-white/20 leading-relaxed pt-1 border-t border-white/5">
