@@ -7,8 +7,9 @@ let extractorPipeline: any = null;
 let loadingPromise: Promise<any> | null = null;
 
 // Yield to the main thread so UI stays responsive
-function yieldToUI(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+// 500ms delay gives the browser enough time to repaint between heavy WASM work
+function yieldToUI(ms = 100): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function loadModel(): Promise<void> {
@@ -57,8 +58,8 @@ export async function generateEmbeddings(
   for (let i = 0; i < texts.length; i++) {
     vectors.push(await generateEmbedding(texts[i]));
     onProgress?.({ current: i + 1, total: texts.length });
-    // Yield every 2 items so the browser can repaint
-    if (i % 2 === 1) await yieldToUI();
+    // Yield after every item with 500ms delay so the browser can repaint
+    await yieldToUI();
   }
   return vectors;
 }
