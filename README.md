@@ -2,6 +2,7 @@
 
 AI Chatbot สำหรับค้นหา เปรียบเทียบ และแนะนำสินค้ายอดนิยมจาก Shopee Thailand
 สร้างด้วย **Next.js 16** + **RAG (Retrieval-Augmented Generation)** Pipeline
+Embedding ทำงานฝั่ง **Client-Side** (Browser/WASM) — Deploy ได้บน Vercel โดยไม่ต้องพึ่ง ONNX Runtime ฝั่ง Server
 
 ---
 
@@ -15,6 +16,7 @@ AI Chatbot สำหรับค้นหา เปรียบเทียบ �
 - [UI Components](#ui-components)
 - [Data Flow](#data-flow)
 - [Knowledge Base](#knowledge-base)
+- [Data Persistence](#data-persistence)
 - [Getting Started](#getting-started)
 - [Environment Variables](#environment-variables)
 
@@ -34,9 +36,11 @@ AI Chatbot สำหรับค้นหา เปรียบเทียบ �
 | กรองหมวดหมู่ | "แนะนำสินค้า beauty ราคาไม่เกิน 1000 บาท" |
 
 - Streaming Response แบบ Real-time (SSE)
-- Source Attribution แสดง similarity score ของสินค้าที่อ้างอิง
-- Upload JSON Knowledge Base ผ่าน Drag & Drop
-- Animated Background (Canvas particle effect)
+- Source Attribution แสดง similarity score + Match Analysis
+- Product Detail Modal แสดงข้อมูลสินค้าครบถ้วน
+- Upload JSON Knowledge Base ผ่าน Drag & Drop (สูงสุด 500 สินค้า)
+- Chat History — เก็บประวัติสนทนาใน IndexedDB, สลับบทสนทนาได้
+- Animated Background (Canvas 2D particle effect)
 - รองรับภาษาไทยและอังกฤษ
 
 ---
@@ -49,21 +53,21 @@ AI Chatbot สำหรับค้นหา เปรียบเทียบ �
 | Next.js | 16.1.6 | Framework (App Router + Turbopack) |
 | React | 19.2.3 | UI Library |
 | TypeScript | 5 | Type Safety |
-| Tailwind CSS | 4 | Styling |
+| Tailwind CSS | 4 | Styling (via `@tailwindcss/postcss`) |
 | Framer Motion | 12.23.26 | Animations |
 | Lucide React | 0.562.0 | Icons |
 | class-variance-authority | 0.7.1 | Component Variants |
 | clsx + tailwind-merge | — | Conditional ClassNames |
-| react-dropzone | — | File Upload |
+| react-dropzone | 15 | File Upload (Drag & Drop) |
+| idb | 8 | IndexedDB Wrapper (Chat History, Custom Products, Cache) |
 
 ### Backend / AI / ML
 | Library | บทบาท |
 |---------|-------|
-| `@huggingface/transformers` | Embedding Model (server-side, multilingual) |
-| `@google/generative-ai` | Gemini API สร้างคำตอบ |
-| `ml-distance` | Cosine Similarity สำหรับ Semantic Search |
-| `zod` | Schema Validation สำหรับ Knowledge Base |
-| `idb` | IndexedDB Wrapper (Embedding Cache) |
+| `@huggingface/transformers` | Embedding Model (**client-side**, browser/WASM) |
+| `@google/generative-ai` | Gemini API สร้างคำตอบ (server-side) |
+| `ml-distance` | Cosine Similarity สำหรับ Semantic Search (server-side) |
+| `zod` (v4) | Schema Validation สำหรับ Knowledge Base |
 
 ---
 
@@ -71,53 +75,55 @@ AI Chatbot สำหรับค้นหา เปรียบเทียบ �
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    RAG Pipeline Overview                       │
+│                    RAG Pipeline Overview                      │
 ├──────────────────────────────────────────────────────────────┤
-│                                                                │
-│  [User Question]                                               │
-│       │                                                        │
-│       ▼                                                        │
-│  ┌────────────────────┐                                        │
-│  │ 1. EMBED QUERY     │  HuggingFace Transformers              │
-│  │    แปลงคำถามเป็น    │  (paraphrase-multilingual-MiniLM)      │
-│  │    384-dim vector   │  pooling=mean, normalize=true          │
-│  └────────┬───────────┘                                        │
-│           │ query vector                                       │
-│           ▼                                                    │
-│  ┌────────────────────┐    ┌─────────────────────────┐         │
-│  │ 2. RETRIEVE        │◄───│ Knowledge Store          │         │
-│  │    Cosine Similarity│    │ 100 products (embedded)  │         │
-│  │    Top-K = 5        │    └─────────────────────────┘         │
-│  │    Threshold ≥ 0.3  │                                        │
-│  └────────┬───────────┘                                        │
-│           │ top-5 relevant chunks                              │
-│           ▼                                                    │
-│  ┌────────────────────┐                                        │
-│  │ 3. AUGMENT         │  System Prompt (Thai Shopping AI)      │
-│  │    สร้าง prompt      │  + Context (5 สินค้าที่เกี่ยวข้อง)      │
-│  │    รวม context       │  + User Question                      │
-│  └────────┬───────────┘                                        │
-│           │ augmented prompt                                   │
-│           ▼                                                    │
-│  ┌────────────────────┐                                        │
-│  │ 4. GENERATE        │  Google Gemini API                     │
-│  │    สร้างคำตอบ        │  Streaming Response (SSE)              │
-│  │    + Source Refs    │  temp=0.7, maxTokens=2048              │
-│  └────────┬───────────┘                                        │
-│           │                                                    │
-│           ▼                                                    │
-│  [AI Response + Source References + Confidence Score]           │
-│                                                                │
+│                                                              │
+│  [User Question]                                             │
+│       │                                                      │
+│       ▼                                                      │
+│  ┌────────────────────┐                                      │
+│  │ 1. EMBED QUERY     │  HuggingFace Transformers            │
+│  │    (CLIENT-SIDE)   │  Browser/WASM                        │
+│  │    แปลงคำถามเป็น    │  paraphrase-multilingual-MiniLM      │
+│  │    384-dim vector   │  pooling=mean, normalize=true        │
+│  └────────┬───────────┘                                      │
+│           │ queryVector (sent to server)                      │
+│           ▼                                                  │
+│  ┌────────────────────┐    ┌─────────────────────────┐       │
+│  │ 2. RETRIEVE        │◄───│ Knowledge Store          │       │
+│  │    (SERVER-SIDE)   │    │ In-memory singleton      │       │
+│  │    Cosine Similarity│    │ 100+ products (embedded) │       │
+│  │    Top-K = 5        │    └─────────────────────────┘       │
+│  │    Threshold ≥ 0.3  │                                      │
+│  └────────┬───────────┘                                      │
+│           │ top-5 relevant chunks                            │
+│           ▼                                                  │
+│  ┌────────────────────┐                                      │
+│  │ 3. AUGMENT         │  System Prompt (Thai Shopping AI)    │
+│  │    สร้าง prompt      │  + Context (5 สินค้าที่เกี่ยวข้อง)    │
+│  │    รวม context       │  + User Question                    │
+│  └────────┬───────────┘                                      │
+│           │ augmented prompt                                 │
+│           ▼                                                  │
+│  ┌────────────────────┐                                      │
+│  │ 4. GENERATE        │  Google Gemini API (server-side)     │
+│  │    สร้างคำตอบ        │  Streaming Response (SSE)            │
+│  │    + Source Refs    │  temp=0.7, maxTokens=2048            │
+│  └────────┬───────────┘                                      │
+│           │                                                  │
+│           ▼                                                  │
+│  [AI Response + Source References + Match Analysis]           │
+│                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### ขั้นตอนย่อ
 
-1. **Embed** — แปลงคำถาม user เป็น vector 384 มิติ ด้วย HuggingFace `paraphrase-multilingual-MiniLM-L12-v2`
-2. **Retrieve** — คำนวณ Cosine Similarity ระหว่าง query vector กับ 100 product vectors → เลือก Top-5 ที่ similarity ≥ 0.3
-3. **Augment** — รวม 5 สินค้าที่เกี่ยวข้อง + System Prompt + คำถาม เป็น prompt เดียว
-4. **Generate** — ส่ง prompt ไป Gemini API → stream คำตอบกลับ client แบบ real-time
-5. **Attribute** — แนบ source references (product ID, ชื่อ, similarity %) กลับไปแสดง
+1. **Embed (Client)** — แปลงคำถาม user เป็น vector 384 มิติ ด้วย HuggingFace `paraphrase-multilingual-MiniLM-L12-v2` **ใน Browser ผ่าน WASM**
+2. **Retrieve (Server)** — รับ `queryVector` จาก client → คำนวณ Cosine Similarity กับ product vectors ใน memory → เลือก Top-5 ที่ similarity ≥ 0.3
+3. **Augment (Server)** — รวม 5 สินค้าที่เกี่ยวข้อง + System Prompt + คำถาม เป็น prompt เดียว
+4. **Generate (Server)** — ส่ง prompt ไป Gemini API → stream คำตอบกลับ client แบบ real-time (SSE)
+5. **Attribute** — แนบ source references (product ID, ชื่อ, similarity %, rank, model info) กลับไปแสดง
 
 ---
 
@@ -126,80 +132,86 @@ AI Chatbot สำหรับค้นหา เปรียบเทียบ �
 ```
 .
 ├── app/                              # Next.js App Router
-│   ├── layout.tsx                    # Root Layout (metadata, fonts)
+│   ├── layout.tsx                    # Root Layout (Geist fonts, metadata, lang="th")
 │   ├── page.tsx                      # "/" → redirect ไป /chat
-│   ├── globals.css                   # Global Styles (dark theme)
+│   ├── globals.css                   # Global Styles (dark theme, Tailwind v4)
 │   ├── chat/
-│   │   └── page.tsx                  # หน้า Chat หลัก
+│   │   └── page.tsx                  # หน้า Chat หลัก (orchestrates all UI)
 │   └── api/
 │       ├── chat/route.ts             # POST: RAG Pipeline (stream/non-stream)
-│       ├── embed/route.ts            # POST: สร้าง embedding vector
+│       ├── embed/route.ts            # POST: ปิดใช้งาน (410 Gone) — ใช้ client-side แทน
 │       ├── health/route.ts           # GET: ตรวจสถานะระบบ
 │       └── knowledge/
-│           ├── route.ts              # GET: สถานะ KB / POST: load/embed/initialize
+│           ├── route.ts              # GET: สถานะ KB / POST: load/store-vectors/append
 │           └── upload/route.ts       # POST: Upload JSON file
 │
 ├── components/
 │   ├── chat/                         # Chat UI Components
 │   │   ├── ChatContainer.tsx         # Container หลัก (messages + input + suggestions)
 │   │   ├── ChatInput.tsx             # Input field + send button (auto-resize)
-│   │   ├── ChatMessage.tsx           # Wrapper แสดง message + sources
-│   │   ├── ChatBubble.tsx            # Bubble style (user=orange, bot=glass)
+│   │   ├── ChatMessage.tsx           # Wrapper แสดง message + sources + inline suggestions
+│   │   ├── ChatBubble.tsx            # Bubble style (user=sky, bot=glass)
 │   │   ├── TypingIndicator.tsx       # Animated dots ขณะ AI กำลังตอบ
-│   │   ├── SourceReference.tsx       # Badge แสดงสินค้าที่อ้างอิง + similarity %
+│   │   ├── SourceReference.tsx       # Badge แสดงสินค้า + similarity % + Match Analysis
 │   │   └── SuggestedQuestions.tsx     # คำถามแนะนำ (6 ข้อ)
 │   │
 │   ├── knowledge/                    # Knowledge Base Management
 │   │   ├── KnowledgeManager.tsx      # Sidebar panel จัดการ KB
-│   │   ├── JsonUploader.tsx          # Drag & Drop upload JSON
-│   │   ├── DataPreview.tsx           # Preview รายการสินค้าใน KB
-│   │   └── EmbeddingStatus.tsx       # แสดงสถานะ loading/error/progress
+│   │   ├── JsonUploader.tsx          # Drag & Drop upload JSON + capacity bar
+│   │   ├── DataPreview.tsx           # Preview สินค้า (ค้นหา + กรองหมวดหมู่)
+│   │   └── EmbeddingStatus.tsx       # แสดงสถานะ loading/error/progress (step-based)
 │   │
 │   ├── layout/                       # Layout Components
-│   │   ├── Header.tsx                # Header (status indicator, KB toggle, clear)
-│   │   ├── Sidebar.tsx               # Animated sidebar wrapper
-│   │   └── ThreeBackground.tsx       # Canvas animated particle background
+│   │   ├── Header.tsx                # Header (status dot, product count, KB toggle)
+│   │   ├── Sidebar.tsx               # Animated right sidebar wrapper (KB panel)
+│   │   ├── ChatSidebar.tsx           # Left sidebar (conversation history)
+│   │   └── ThreeBackground.tsx       # Canvas 2D animated particle background
 │   │
 │   └── ui/                           # Reusable UI Components
 │       ├── Button.tsx                # Button (variants: default/secondary/ghost/outline)
-│       ├── Card.tsx                  # Card container (glass effect)
+│       ├── Card.tsx                  # Card container (glass effect, optional glow)
 │       ├── Badge.tsx                 # Badge (variants: default/success/warning/info)
-│       ├── ScrollArea.tsx            # Custom scrollbar
+│       ├── ProductModal.tsx          # Product detail modal + Match Analysis
+│       ├── ScrollArea.tsx            # Custom scrollbar wrapper
 │       ├── Skeleton.tsx              # Loading skeleton
 │       └── Toast.tsx                 # Toast notifications (context provider)
 │
 ├── hooks/                            # Custom React Hooks
-│   ├── useChat.ts                    # Chat state + streaming SSE + message management
-│   ├── useRAG.ts                     # RAG initialization + health check
-│   ├── useKnowledge.ts              # KB upload + status fetching
-│   ├── useEmbedding.ts              # Embedding API wrapper
+│   ├── useChat.ts                    # Chat state + streaming SSE + client-side embedding
+│   ├── useChatHistory.ts            # Conversation CRUD (IndexedDB)
+│   ├── useRAG.ts                     # RAG initialization + health check + init steps
+│   ├── useKnowledge.ts              # KB upload + custom products + clear
+│   ├── useEmbedding.ts              # Client-side embedding wrapper
 │   └── useScrollToBottom.ts         # Auto-scroll เมื่อมี message ใหม่
 │
 ├── lib/                              # Core Libraries
 │   ├── rag/                          # RAG Pipeline Core
-│   │   ├── pipeline.ts              # ★ Orchestrator: embed → retrieve → generate
-│   │   ├── embedding.ts             # ★ HuggingFace embedding (singleton, lazy-load)
+│   │   ├── pipeline.ts              # ★ Orchestrator: retrieve → augment → generate
+│   │   ├── embeddings-client.ts     # ★ Client-side HuggingFace WASM embedding
+│   │   ├── embedding.ts             # Server-side stub (boolean flag เท่านั้น)
 │   │   ├── retriever.ts             # ★ Cosine similarity search + filters
-│   │   ├── generator.ts             # ★ Gemini API (stream + non-stream)
+│   │   ├── generator.ts             # ★ Gemini API (stream + non-stream) + GeminiError
 │   │   ├── chunker.ts               # Product → text chunk conversion
 │   │   └── prompt-template.ts       # System prompt + augmented prompt builder
 │   │
 │   ├── knowledge/                    # Knowledge Base Management
-│   │   ├── knowledge-store.ts       # Singleton store (products, chunks, embeddings)
+│   │   ├── knowledge-store.ts       # Singleton store (products, chunks, embeddings, max 500)
 │   │   ├── json-loader.ts           # Load KB from file / parse JSON string
-│   │   └── schema-validator.ts      # Zod schema validation
+│   │   └── schema-validator.ts      # Zod v4 schema validation
 │   │
-│   ├── db/                           # Client-side Storage
-│   │   ├── indexed-db.ts            # IndexedDB wrapper (idb)
+│   ├── db/                           # Client-side Storage (IndexedDB)
+│   │   ├── indexed-db.ts            # IndexedDB wrapper (3 stores: cache, history, products)
+│   │   ├── chat-history.ts          # Conversation CRUD operations
+│   │   ├── custom-products.ts       # Custom product persistence
 │   │   └── embedding-cache.ts       # Embedding cache interface
 │   │
 │   └── utils/                        # Utilities
-│       ├── constants.ts              # Defaults (TOP_K, THRESHOLD, models, questions)
+│       ├── constants.ts              # Defaults (TOP_K, THRESHOLD, models, questions, MAX=500)
 │       ├── cn.ts                     # clsx + tailwind-merge helper
 │       └── format.ts                # Format: price, number, similarity, generateId
 │
 ├── types/                            # TypeScript Type Definitions
-│   ├── chat.ts                       # Message, ChatState, SourceReference, ChatRequest/Response
+│   ├── chat.ts                       # Message, ChatState, SourceReference, Conversation
 │   ├── knowledge.ts                  # Product, KnowledgeBase, Chunk, EmbeddedChunk
 │   └── rag.ts                        # RAGResult, RAGOptions, RetrievalResult, PipelineStatus
 │
@@ -207,9 +219,10 @@ AI Chatbot สำหรับค้นหา เปรียบเทียบ �
 │   ├── shopee-products-knowledge-base.json   # ★ Knowledge Base (100 สินค้า, 15 หมวดหมู่)
 │   └── metadata.json                         # Metadata ของ KB
 │
-├── next.config.ts                    # Turbopack + serverExternalPackages
+├── next.config.ts                    # Empty config (Turbopack is default in Next.js 16)
 ├── tsconfig.json                     # TypeScript config (paths: @/* → ./*)
-├── postcss.config.mjs                # PostCSS + Tailwind v4
+├── postcss.config.mjs                # PostCSS + @tailwindcss/postcss
+├── eslint.config.mjs                 # ESLint (core-web-vitals + typescript)
 ├── package.json                      # Dependencies & scripts
 └── .env.local                        # API Keys & configuration
 ```
@@ -220,13 +233,14 @@ AI Chatbot สำหรับค้นหา เปรียบเทียบ �
 
 ### `POST /api/chat`
 
-RAG Pipeline หลัก — รับคำถาม → ค้นหา → สร้างคำตอบ
+RAG Pipeline หลัก — รับคำถาม + queryVector → ค้นหา → สร้างคำตอบ
 
 ```typescript
 // Request
 {
   message: "หูฟังตัดเสียงรบกวนตัวไหนดี?",
-  stream: true,                       // true = SSE streaming
+  queryVector: number[384],             // client-side embedding (จำเป็น)
+  stream: true,                         // true = SSE streaming
   options?: { topK?: 5, temperature?: 0.7 }
 }
 
@@ -239,35 +253,47 @@ data: {"type":"done","data":""}
 // Response (stream = false) → JSON
 {
   answer: "จากข้อมูลสินค้า...",
-  sources: [{ productId, productName, similarity, category, price }],
+  sources: [{ productId, productName, similarity, category, price, rank, ... }],
   confidence: 0.82
 }
 ```
 
-### `POST /api/embed`
+> **หมายเหตุ**: ต้องส่ง `queryVector` ที่ embed ฝั่ง client มาด้วย ไม่เช่นนั้นจะได้ 400 Bad Request
 
-สร้าง embedding vector จากข้อความ
+### `POST /api/embed` (ปิดใช้งาน)
+
+ส่งกลับ HTTP 410 Gone — Embedding ทำฝั่ง client ทั้งหมด
+
+### `GET /api/knowledge`
+
+ดึงสถานะ Knowledge Base + รายการสินค้า
 
 ```typescript
-// Single text
-{ text: "หูฟังบลูทูธ" }           → { vector: number[384] }
-
-// Batch
-{ texts: ["หูฟัง", "โน้ตบุ๊ค"] }  → { vectors: number[2][384] }
+{
+  isInitialized: true,
+  productsCount: 100,
+  chunksCount: 100,
+  embeddingsCount: 100,
+  products: Product[]
+}
 ```
 
-### `GET/POST /api/knowledge`
+### `POST /api/knowledge`
 
-จัดการ Knowledge Base
+จัดการ Knowledge Base — รองรับ 4 actions:
 
 ```typescript
-// GET → สถานะ KB + รายการสินค้า
-{ isInitialized, productsCount, chunksCount, embeddingsCount, products: [...] }
+// โหลด KB จากไฟล์ → ส่ง chunkTexts กลับให้ client embed
+{ action: "initialize" }  → { chunkTexts: string[] }
+{ action: "load" }        → { chunkTexts: string[] }
 
-// POST actions:
-{ action: "load" }        // โหลด KB จากไฟล์
-{ action: "embed" }       // สร้าง embeddings
-{ action: "initialize" }  // โหลด + embed (ครบจบ)
+// รับ vectors ที่ client embed แล้ว → เก็บใน memory
+{ action: "store-vectors", vectors: number[][] }
+→ { embeddingsCount, productsCount, isReady: true }
+
+// เพิ่มสินค้าใหม่ (พร้อม vectors ที่ embed แล้ว)
+{ action: "append", products: Product[], vectors: number[][] }
+→ { productsCount, chunksCount, embeddingsCount }
 ```
 
 ### `POST /api/knowledge/upload`
@@ -275,8 +301,8 @@ data: {"type":"done","data":""}
 Upload ไฟล์ JSON ใหม่ (multipart/form-data)
 
 ```typescript
-// Response
-{ success: true, documentsCount: 100, chunksCount: 100, embeddingsCount: 100 }
+// Response → ส่ง chunkTexts กลับให้ client embed
+{ success: true, documentsCount: 100, chunksCount: 100, chunkTexts: string[] }
 ```
 
 ### `GET /api/health`
@@ -286,12 +312,15 @@ Upload ไฟล์ JSON ใหม่ (multipart/form-data)
 ```typescript
 {
   status: "ok",
-  embeddingModelLoaded: true,
+  embeddingMode: "client-side",
   embeddingModel: "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
-  geminiModel: "gemini-2.5-flash-lite",
+  geminiModel: "gemini-2.0-flash",
   knowledgeBaseSize: 100,
   embeddingsCount: 100,
-  isReady: true
+  isReady: true,
+  baseProductsCount: 100,
+  customProductsCount: 0,
+  maxProducts: 500
 }
 ```
 
@@ -304,36 +333,80 @@ Upload ไฟล์ JSON ใหม่ (multipart/form-data)
 ```
 RootLayout (app/layout.tsx)
 └── ChatPage (app/chat/page.tsx)
-    ├── ThreeBackground          ← Canvas animated particle background
+    ├── ThreeBackground          ← Canvas 2D animated particle background
     └── ToastProvider
-        ├── Header               ← Status + KB toggle + Clear chat
+        ├── ChatSidebar          ← Left panel: conversation history (IndexedDB)
+        ├── Header               ← Status dot + product count + KB toggle + new chat
         ├── ChatContainer
-        │   ├── EmbeddingStatus  ← Loading / Error bar (ถ้ายังไม่ ready)
+        │   ├── EmbeddingStatus  ← Step-based progress bar (ถ้ายังไม่ ready)
         │   ├── ScrollArea
-        │   │   ├── Welcome      ← ข้อความต้อนรับ (เมื่อยังไม่มี message)
+        │   │   ├── Welcome      ← SVG bot + ข้อความต้อนรับ (เมื่อยังไม่มี message)
         │   │   ├── ChatMessage[]
-        │   │   │   ├── ChatBubble (user = orange gradient, bot = glass)
-        │   │   │   └── SourceReference (badges + similarity %)
-        │   │   └── TypingIndicator (animated dots)
+        │   │   │   ├── ChatBubble (user = sky-tint, bot = glass)
+        │   │   │   ├── SourceReference (badges → click เปิด ProductModal)
+        │   │   │   └── Inline Suggestions (เมื่อไม่พบผลลัพธ์)
+        │   │   └── TypingIndicator (animated dots + "กำลังค้นหาคำตอบ...")
         │   ├── SuggestedQuestions ← 6 คำถามแนะนำ
-        │   └── ChatInput         ← Textarea + Send button
-        └── Sidebar
+        │   └── ChatInput         ← Auto-resize textarea + Send button
+        └── Sidebar (right)
             └── KnowledgeManager
-                ├── JsonUploader  ← Drag & Drop zone
-                └── DataPreview   ← รายการสินค้าใน KB
+                ├── JsonUploader  ← Drag & Drop zone + capacity bar
+                └── DataPreview   ← ค้นหา + กรองหมวดหมู่ + ProductModal
 ```
 
 ### Design System
 
-- **Theme**: Dark mode (background `#050505`, text `#ededed`)
+- **Theme**: Dark mode (`--background: #09090b`, `--foreground: #fafafa`)
 - **Accent**: Orange-Red gradient (`from-orange-500 to-red-500`) — Shopee branding
 - **Glass Effect**: `bg-white/5 backdrop-blur-xl border-white/10`
 - **Animations**: Framer Motion (slide-up messages, bouncing dots, fade transitions)
 - **Font**: Geist Sans + Geist Mono (via `next/font`)
+- **Scrollbar**: Custom slim 4px scrollbar
 
 ---
 
 ## Data Flow
+
+### Initialization Flow (Cold Start)
+
+```
+Browser                              Server (Next.js)
+  │                                      │
+  │── GET /api/health ────────────────→  │
+  │←── { isReady: false } ───────────── │
+  │                                      │
+  │  [Step: loading-kb]                  │
+  │── POST /api/knowledge ───────────→   │
+  │   { action: "initialize" }           │
+  │                            loadKnowledgeBaseFromFile()
+  │                            productsToChunks()
+  │←── { chunkTexts: string[] } ──────  │
+  │                                      │
+  │  [Step: loading-model]               │
+  │  loadModel() — WASM download         │
+  │  (~118MB, ครั้งแรกเท่านั้น)             │
+  │                                      │
+  │  [Step: embedding]                   │
+  │  generateEmbeddings(chunkTexts)      │
+  │  (384-dim per chunk, sequential)     │
+  │                                      │
+  │  [Step: storing]                     │
+  │── POST /api/knowledge ───────────→   │
+  │   { action: "store-vectors",         │
+  │     vectors: number[][] }            │
+  │                            store.storeVectors(vectors)
+  │←── { embeddingsCount, isReady } ──  │
+  │                                      │
+  │  [Step: custom-products]             │
+  │  ดึง custom products จาก IndexedDB    │
+  │  embed + POST action="append"        │
+  │                                      │
+  │  ✅ Ready!                            │
+```
+
+> **Fast Path**: ถ้า refresh หน้าแล้ว server ยังเก็บ vectors ไว้ (`GET /api/health` → `isReady: true`) จะข้ามทุกขั้นตอนและพร้อมใช้ทันที
+
+### Chat Message Flow
 
 ```
 User พิมพ์คำถาม
@@ -341,14 +414,12 @@ User พิมพ์คำถาม
     ▼
 ChatInput.tsx → useChat.sendMessage()
     │
-    ▼ POST /api/chat (stream: true)
+    ├─ generateEmbedding(message)  ←── Client-side (Browser WASM)
+    │   └─ 384-dim queryVector
     │
-    ├─ ensureKnowledgeBase()
-    │   └─ ถ้ายังไม่โหลด → loadFromFile() → embedAllChunks()
+    ▼ POST /api/chat { message, queryVector, stream: true }
     │
-    ├─ embedText(question) ─── HuggingFace Transformers ──→ query vector [384]
-    │
-    ├─ retrieveTopK(queryVector, embeddedChunks)
+    ├─ retrieveTopK(queryVector, embeddedChunks)     ←── Server-side
     │   └─ cosine similarity → filter ≥ 0.3 → sort → top-5
     │
     ├─ buildAugmentedPrompt(question, top5Results)
@@ -356,11 +427,27 @@ ChatInput.tsx → useChat.sendMessage()
     │
     ├─ SSE: {"type":"sources", "data":"[...]"}  ──→ SourceReference badges
     │
-    ├─ generateResponseStream(prompt)
-    │   └─ Gemini API streaming
-    │       └─ SSE: {"type":"text", "data":"..."} ──→ ChatBubble (real-time)
+    ├─ generateResponseStream(prompt)               ←── Gemini API
+    │   └─ SSE: {"type":"text", "data":"..."} ──→ ChatBubble (real-time)
     │
     └─ SSE: {"type":"done"}  ──→ isStreaming = false
+                                  └─ บันทึกสนทนาลง IndexedDB
+```
+
+### Custom Product Upload Flow
+
+```
+User drops JSON file
+    │
+    ▼
+Zod validation (client-side)
+    │
+    ├─ saveCustomProducts() → IndexedDB (persist across refresh)
+    │
+    ├─ productsToChunks() → generateEmbeddings() (Browser WASM)
+    │
+    └─ POST /api/knowledge { action: "append", products, vectors }
+        └─ store.appendProducts() — deduplicate + MAX_PRODUCTS cap (500)
 ```
 
 ---
@@ -376,6 +463,11 @@ ChatInput.tsx → useChat.sendMessage()
 | แบรนด์ | 70+ แบรนด์ |
 | ช่วงราคา | ฿99 – ฿62,990 |
 | ราคาเฉลี่ย | ฿9,343 |
+| จำนวนสูงสุดที่รองรับ | 500 สินค้า (base + custom) |
+
+### 15 หมวดหมู่
+
+`automotive` · `baby-kids` · `beauty` · `computing` · `electronics` · `fashion-men` · `fashion-women` · `food-beverage` · `gaming` · `health` · `home-appliances` · `pet-supplies` · `smartphones` · `sports` · `stationery`
 
 ### Chunking Strategy
 
@@ -419,6 +511,18 @@ interface Product {
 
 ---
 
+## Data Persistence
+
+| ข้อมูล | ที่เก็บ | คงอยู่หลัง Refresh? |
+|--------|--------|-------------------|
+| Product vectors (base KB) | Server memory (singleton) | ✅ (ถ้า server process ยังทำงาน) |
+| Custom products | IndexedDB `custom-products` | ✅ (re-embed + append on init) |
+| Chat history | IndexedDB `chat-history` | ✅ |
+| Embedding cache | IndexedDB `embedding-cache` | ✅ (schema มี แต่ยังไม่ได้ใช้งาน) |
+| WASM model | Browser cache | ✅ (หลังดาวน์โหลดครั้งแรก) |
+
+---
+
 ## Getting Started
 
 ### 1. Install Dependencies
@@ -448,7 +552,7 @@ npm run dev
 
 เปิด [http://localhost:3000](http://localhost:3000) → จะ redirect ไป `/chat`
 
-> **หมายเหตุ**: การเปิดครั้งแรกจะใช้เวลา 30-60 วินาทีในการดาวน์โหลด Embedding Model (~118MB) และสร้าง embeddings สำหรับ 100 สินค้า
+> **หมายเหตุ**: การเปิดครั้งแรกจะใช้เวลา 30-60 วินาทีในการดาวน์โหลด Embedding Model (~118MB) และสร้าง embeddings สำหรับ 100 สินค้า ครั้งต่อไป model จะถูก cache ใน browser
 
 ### 4. Build for Production
 
@@ -465,7 +569,7 @@ npm start
 |--------|-----------|---------|
 | `GOOGLE_GEMINI_API_KEY` | — | **(จำเป็น)** API Key ของ Google Gemini |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Model ที่ใช้สร้างคำตอบ |
-| `EMBEDDING_MODEL` | `Xenova/paraphrase-multilingual-MiniLM-L12-v2` | Model สำหรับ embedding |
+| `EMBEDDING_MODEL` | `Xenova/paraphrase-multilingual-MiniLM-L12-v2` | Model สำหรับ embedding (client-side) |
 | `TOP_K` | `5` | จำนวนสินค้าที่ดึงมาเป็น context |
 | `SIMILARITY_THRESHOLD` | `0.3` | คะแนน cosine similarity ขั้นต่ำ |
 | `MAX_CONTEXT_LENGTH` | `4000` | ความยาวสูงสุดของ context (tokens) |
