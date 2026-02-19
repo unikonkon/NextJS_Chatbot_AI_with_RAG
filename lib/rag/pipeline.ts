@@ -1,6 +1,6 @@
 import { retrieveTopK } from "./retriever";
 import { generateResponse, generateResponseStream } from "./generator";
-import { buildAugmentedPrompt } from "./prompt-template";
+import { buildAugmentedPrompt, type PromptContext } from "./prompt-template";
 import { getKnowledgeStore } from "@/lib/knowledge/knowledge-store";
 import type { RAGResult, RAGOptions } from "@/types/rag";
 import type { SourceReference } from "@/types/chat";
@@ -56,7 +56,12 @@ export async function runRAGPipeline(
   }
 
   // Step 2: Build augmented prompt
-  const prompt = buildAugmentedPrompt(question, retrievalResults);
+  const products = store.getProducts();
+  const promptCtx: PromptContext = {
+    productsCount: products.length,
+    categories: [...new Set(products.map((p) => p.category))],
+  };
+  const prompt = buildAugmentedPrompt(question, retrievalResults, promptCtx);
 
   // Step 3: Generate response
   const answer = await generateResponse(prompt, opts.temperature);
@@ -124,7 +129,12 @@ export async function* runRAGPipelineStream(
     return;
   }
 
-  const prompt = buildAugmentedPrompt(question, retrievalResults);
+  const products = store.getProducts();
+  const promptCtx: PromptContext = {
+    productsCount: products.length,
+    categories: [...new Set(products.map((p) => p.category))],
+  };
+  const prompt = buildAugmentedPrompt(question, retrievalResults, promptCtx);
 
   const vectorDimensions = queryVector.length;
   const sources: SourceReference[] = retrievalResults.map((r, i) => ({

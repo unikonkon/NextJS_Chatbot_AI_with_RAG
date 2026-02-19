@@ -62,6 +62,31 @@ export function useRAG() {
     }));
 
     try {
+      // Fast path: if server already has vectors (e.g. page refresh), skip full init
+      try {
+        const healthRes = await fetch("/api/health");
+        if (healthRes.ok) {
+          const health = await healthRes.json();
+          if (health.isReady && health.embeddingsCount > 0) {
+            setStatus({
+              isReady: true,
+              isInitializing: false,
+              error: null,
+              productsCount: health.knowledgeBaseSize,
+              embeddingsCount: health.embeddingsCount,
+              baseProductsCount: health.baseProductsCount ?? health.knowledgeBaseSize,
+              customProductsCount: health.customProductsCount ?? 0,
+              maxProducts: health.maxProducts ?? MAX_PRODUCTS,
+              step: null,
+              embeddingProgress: null,
+            });
+            return;
+          }
+        }
+      } catch {
+        // health check failed, proceed with full init
+      }
+
       // Step 1: Load KB on server (returns chunk texts)
       const loadRes = await fetch("/api/knowledge", {
         method: "POST",

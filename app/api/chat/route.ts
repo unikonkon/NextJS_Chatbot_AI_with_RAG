@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const store = getKnowledgeStore();
     if (!store.hasEmbeddings()) {
       return Response.json(
-        { error: "Knowledge base not initialized. Please initialize first.", code: "KB_NOT_READY" },
+        { error: "Knowledge base not initialized. Please initialize first. ( กรุณาโหลดข้อมูล Knowledge base ก่อนใช้งาน )", code: "KB_NOT_READY" },
         { status: 503 }
       );
     }

@@ -14,6 +14,9 @@ export async function GET() {
       knowledgeBaseSize: status.productsCount,
       embeddingsCount: status.embeddingsCount,
       isReady: status.embeddingsCount > 0,
+      baseProductsCount: status.baseProductsCount,
+      customProductsCount: status.customProductsCount,
+      maxProducts: status.maxProducts,
     });
   } catch (error) {
     console.error("Health API error:", error);

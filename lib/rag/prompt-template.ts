@@ -1,7 +1,13 @@
 import type { RetrievalResult } from "@/types/rag";
 
-export const SYSTEM_PROMPT = `คุณเป็น AI Shopping Assistant สำหรับแนะนำสินค้าจาก Shopee Thailand
-คุณมีข้อมูลสินค้ายอดนิยม 100 รายการ จาก 15 หมวดหมู่
+export interface PromptContext {
+  productsCount: number;
+  categories: string[];
+}
+
+export function buildSystemPrompt(ctx: PromptContext): string {
+  return `คุณเป็น AI Shopping Assistant สำหรับแนะนำสินค้าจาก Faraday Store Thailand
+คุณมีข้อมูลสินค้ายอดนิยม ${ctx.productsCount} รายการ จาก ${ctx.categories.length} หมวดหมู่ (${ctx.categories.join(", ")})
 
 กฎ:
 1. ตอบเฉพาะจากข้อมูลสินค้าใน Context เท่านั้น ห้ามแต่งข้อมูลเพิ่มเอง
@@ -13,10 +19,12 @@ export const SYSTEM_PROMPT = `คุณเป็น AI Shopping Assistant สำ
 7. อ้างอิง product ID ทุกครั้งเพื่อให้ตรวจสอบได้
 8. ถ้าไม่พบข้อมูลที่เกี่ยวข้องเลย ให้บอกตรงๆ ว่า "ไม่พบสินค้าที่ตรงกับคำถาม"
 9. จัดรูปแบบคำตอบให้อ่านง่าย ใช้ bullet points หรือ heading ตามความเหมาะสม`;
+}
 
 export function buildAugmentedPrompt(
   question: string,
-  retrievalResults: RetrievalResult[]
+  retrievalResults: RetrievalResult[],
+  ctx: PromptContext
 ): string {
   const contextParts = retrievalResults.map((result, i) => {
     const { chunk, similarity } = result;
@@ -26,7 +34,7 @@ ${chunk.text}`;
 
   const context = contextParts.join("\n\n");
 
-  return `${SYSTEM_PROMPT}
+  return `${buildSystemPrompt(ctx)}
 
 ## สินค้าที่เกี่ยวข้อง (Context):
 
