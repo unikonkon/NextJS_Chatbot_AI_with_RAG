@@ -93,7 +93,9 @@ export function useChat(options?: UseChatOptions) {
         });
 
         if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
+          const errorBody = await response.json().catch(() => null);
+          const errorMsg = errorBody?.error || `API error: ${response.status}`;
+          throw new Error(errorMsg);
         }
 
         const reader = response.body?.getReader();

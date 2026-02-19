@@ -324,7 +324,7 @@ export function ChatContainer({
         )}
 
         {messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
+          <ChatMessage key={msg.id} message={msg} onSendMessage={sendMessage} />
         ))}
 
         <AnimatePresence>

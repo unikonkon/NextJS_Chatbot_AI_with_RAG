@@ -1,6 +1,26 @@
 import { NextRequest } from "next/server";
 import { runRAGPipeline, runRAGPipelineStream } from "@/lib/rag/pipeline";
 import { getKnowledgeStore } from "@/lib/knowledge/knowledge-store";
+import { GeminiError } from "@/lib/rag/generator";
+
+function geminiErrorToStatus(code: string): number {
+  switch (code) {
+    case "RATE_LIMIT":
+      return 429;
+    case "SERVICE_UNAVAILABLE":
+      return 503;
+    case "AUTH_ERROR":
+      return 401;
+    case "MODEL_NOT_FOUND":
+      return 404;
+    case "PAYLOAD_TOO_LARGE":
+      return 413;
+    case "CONFIG_ERROR":
+      return 500;
+    default:
+      return 502; // Bad Gateway - upstream (Gemini) failed
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,14 +29,14 @@ export async function POST(request: NextRequest) {
 
     if (!message || typeof message !== "string") {
       return Response.json(
-        { error: "Message is required and must be a string" },
+        { error: "Message is required and must be a string", code: "INVALID_MESSAGE" },
         { status: 400 }
       );
     }
 
     if (!queryVector || !Array.isArray(queryVector)) {
       return Response.json(
-        { error: "queryVector is required (embed the message client-side first)" },
+        { error: "queryVector is required (embed the message client-side first)", code: "MISSING_VECTOR" },
         { status: 400 }
       );
     }
@@ -24,8 +44,8 @@ export async function POST(request: NextRequest) {
     const store = getKnowledgeStore();
     if (!store.hasEmbeddings()) {
       return Response.json(
-        { error: "Knowledge base not initialized. Please initialize first." },
-        { status: 400 }
+        { error: "Knowledge base not initialized. Please initialize first.", code: "KB_NOT_READY" },
+        { status: 503 }
       );
     }
 
@@ -43,7 +63,9 @@ export async function POST(request: NextRequest) {
           } catch (error) {
             const errMsg =
               error instanceof Error ? error.message : "Unknown error";
-            const data = `data: ${JSON.stringify({ type: "error", data: errMsg })}\n\n`;
+            const errCode =
+              error instanceof GeminiError ? error.code : "STREAM_ERROR";
+            const data = `data: ${JSON.stringify({ type: "error", data: errMsg, code: errCode })}\n\n`;
             controller.enqueue(encoder.encode(data));
             controller.close();
           }
@@ -69,7 +91,15 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Chat API error:", error);
+
+    if (error instanceof GeminiError) {
+      return Response.json(
+        { error: error.message, code: error.code },
+        { status: geminiErrorToStatus(error.code) }
+      );
+    }
+
     const message = error instanceof Error ? error.message : "Internal server error";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json({ error: message, code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
