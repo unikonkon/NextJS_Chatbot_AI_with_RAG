@@ -27,6 +27,7 @@ export async function GET() {
     return Response.json({
       ...status,
       products: store.getProducts(),
+      customProductIds: store.getCustomProductIds(),
     });
   } catch (error) {
     console.error("Knowledge API error:", error);
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
     let body: {
       action?: string;
       products?: unknown[];
+      productId?: string;
     } = {};
     try {
       body = await request.json();
@@ -113,8 +115,44 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Reset to base products only (clear all custom products)
+    if (action === "reset") {
+      store.resetToBase();
+      const status = store.getStatus();
+      return Response.json({
+        success: true,
+        message: "Reset to base products",
+        ...status,
+      });
+    }
+
+    // Remove a single custom product by ID
+    if (action === "remove") {
+      if (!body.productId || typeof body.productId !== "string") {
+        return Response.json(
+          { error: "productId is required for remove action." },
+          { status: 400 }
+        );
+      }
+
+      const removed = store.removeProduct(body.productId);
+      if (!removed) {
+        return Response.json(
+          { error: `Product '${body.productId}' not found or is a base product.` },
+          { status: 404 }
+        );
+      }
+
+      const status = store.getStatus();
+      return Response.json({
+        success: true,
+        message: `Removed product '${body.productId}'`,
+        ...status,
+      });
+    }
+
     return Response.json(
-      { error: "Invalid action. Use 'initialize' or 'append'" },
+      { error: "Invalid action. Use 'initialize', 'append', 'reset', or 'remove'" },
       { status: 400 }
     );
   } catch (error) {

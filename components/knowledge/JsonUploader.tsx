@@ -19,9 +19,21 @@ import {
   FileJson,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { useKnowledge } from "@/hooks/useKnowledge";
+
+interface KnowledgeStatus {
+  isUploading: boolean;
+  uploadProgress: string;
+  error: string | null;
+  productsCount: number;
+  baseProductsCount: number;
+  customProductsCount: number;
+  maxProducts: number;
+}
 
 interface JsonUploaderProps {
+  status: KnowledgeStatus;
+  uploadFile: (file: File) => Promise<unknown>;
+  clearCustomProducts: () => Promise<void>;
   onDataChange?: () => void;
 }
 
@@ -72,8 +84,7 @@ const SAMPLE_KNOWLEDGE_BASE = {
   products: SAMPLE_PRODUCTS,
 };
 
-export function JsonUploader({ onDataChange }: JsonUploaderProps) {
-  const { status, uploadFile, clearCustomProducts } = useKnowledge();
+export function JsonUploader({ status, uploadFile, clearCustomProducts, onDataChange }: JsonUploaderProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [showFormatInfo, setShowFormatInfo] = useState(false);
@@ -98,27 +109,28 @@ export function JsonUploader({ onDataChange }: JsonUploaderProps) {
         ? "text-yellow-400"
         : "text-emerald-400";
 
+  const [showSuccess, setShowSuccess] = useState(false);
+
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       const file = acceptedFiles[0];
       if (file) {
         const result = await uploadFile(file);
-        if (result) onDataChange?.();
+        if (result) {
+          setShowSuccess(true);
+          onDataChange?.();
+        }
       }
     },
     [uploadFile, onDataChange]
   );
 
-  const [showSuccess, setShowSuccess] = useState(false);
-
-  // Show success message for 3 seconds after custom products are added
+  // Auto-dismiss success message after 3 seconds
   useEffect(() => {
-    if (status.customProductsCount > 0 && !status.isUploading && !status.error) {
-      setShowSuccess(true);
-      const timer = setTimeout(() => setShowSuccess(false), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [status.customProductsCount, status.isUploading, status.error]);
+    if (!showSuccess) return;
+    const timer = setTimeout(() => setShowSuccess(false), 3000);
+    return () => clearTimeout(timer);
+  }, [showSuccess]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

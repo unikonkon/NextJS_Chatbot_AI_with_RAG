@@ -5,6 +5,7 @@ import { MAX_PRODUCTS } from "@/lib/utils/constants";
 import {
   saveCustomProducts,
   getAllCustomProducts,
+  removeCustomProduct as removeIDBCustomProduct,
   clearCustomProducts as clearIDBCustomProducts,
 } from "@/lib/db/custom-products";
 import { KnowledgeBaseSchema, ProductSchema } from "@/lib/knowledge/schema-validator";
@@ -18,6 +19,7 @@ interface KnowledgeStatus {
   productsCount: number;
   baseProductsCount: number;
   customProductsCount: number;
+  customProductIds: string[];
   maxProducts: number;
 }
 
@@ -29,23 +31,65 @@ export function useKnowledge() {
     productsCount: 0,
     baseProductsCount: 0,
     customProductsCount: 0,
+    customProductIds: [],
     maxProducts: MAX_PRODUCTS,
   });
 
-  // Auto-fetch status on mount
+  // Auto-fetch status on mount + re-sync custom products from IndexedDB if needed
   useEffect(() => {
-    fetch("/api/knowledge")
-      .then((res) => res.json())
-      .then((data) => {
+    let cancelled = false;
+
+    async function initAndSync() {
+      try {
+        const res = await fetch("/api/knowledge");
+        const data = await res.json();
+        if (cancelled) return;
+
         setStatus((prev) => ({
           ...prev,
           productsCount: data.productsCount ?? 0,
           baseProductsCount: data.baseProductsCount ?? 0,
           customProductsCount: data.customProductsCount ?? 0,
+          customProductIds: data.customProductIds ?? [],
           maxProducts: data.maxProducts ?? MAX_PRODUCTS,
         }));
-      })
-      .catch(() => {});
+
+        // If server has no custom products, re-sync from IndexedDB (e.g. after cold start)
+        if ((data.customProductsCount ?? 0) === 0) {
+          const idbProducts = await getAllCustomProducts();
+          if (idbProducts.length > 0 && !cancelled) {
+            const syncRes = await fetch("/api/knowledge", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "append", products: idbProducts }),
+            });
+            if (syncRes.ok && !cancelled) {
+              const syncData = await syncRes.json();
+              setStatus((prev) => ({
+                ...prev,
+                productsCount: syncData.total ?? prev.productsCount,
+                baseProductsCount: syncData.baseProductsCount ?? prev.baseProductsCount,
+                customProductsCount: syncData.customProductsCount ?? prev.customProductsCount,
+              }));
+              // Fetch again to get updated customProductIds
+              const res2 = await fetch("/api/knowledge");
+              const data2 = await res2.json();
+              if (!cancelled) {
+                setStatus((prev) => ({
+                  ...prev,
+                  customProductIds: data2.customProductIds ?? [],
+                }));
+              }
+            }
+          }
+        }
+      } catch {
+        // silently fail
+      }
+    }
+
+    initAndSync();
+    return () => { cancelled = true; };
   }, []);
 
   const uploadFile = useCallback(
@@ -113,6 +157,7 @@ export function useKnowledge() {
         }
 
         const data = await res.json();
+        const newIds = products.map((p) => p.id);
 
         setStatus((prev) => ({
           ...prev,
@@ -122,6 +167,7 @@ export function useKnowledge() {
           productsCount: data.total,
           baseProductsCount: data.baseProductsCount,
           customProductsCount: data.customProductsCount,
+          customProductIds: [...new Set([...prev.customProductIds, ...newIds])],
         }));
 
         return data;
@@ -167,21 +213,47 @@ export function useKnowledge() {
 
   const clearCustomProducts = useCallback(async () => {
     await clearIDBCustomProducts();
-    // Re-initialize base only
     try {
       const res = await fetch("/api/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "initialize" }),
+        body: JSON.stringify({ action: "reset" }),
       });
 
       if (res.ok) {
         const data = await res.json();
         setStatus((prev) => ({
           ...prev,
-          productsCount: data.productsCount,
-          baseProductsCount: data.productsCount,
+          productsCount: data.productsCount ?? prev.productsCount,
+          baseProductsCount: data.baseProductsCount ?? prev.baseProductsCount,
           customProductsCount: 0,
+          customProductIds: [],
+        }));
+      }
+    } catch {
+      // silently fail
+    }
+  }, []);
+
+  const deleteCustomProduct = useCallback(async (id: string) => {
+    // Remove from IndexedDB
+    await removeIDBCustomProduct(id);
+    // Remove from server
+    try {
+      const res = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove", productId: id }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setStatus((prev) => ({
+          ...prev,
+          productsCount: data.productsCount ?? prev.productsCount,
+          baseProductsCount: data.baseProductsCount ?? prev.baseProductsCount,
+          customProductsCount: data.customProductsCount ?? prev.customProductsCount,
+          customProductIds: prev.customProductIds.filter((pid) => pid !== id),
         }));
       }
     } catch {
@@ -198,6 +270,7 @@ export function useKnowledge() {
         productsCount: data.productsCount,
         baseProductsCount: data.baseProductsCount ?? 0,
         customProductsCount: data.customProductsCount ?? 0,
+        customProductIds: data.customProductIds ?? [],
         maxProducts: data.maxProducts ?? MAX_PRODUCTS,
       }));
       return data;
@@ -212,5 +285,6 @@ export function useKnowledge() {
     fetchStatus,
     loadCustomProducts,
     clearCustomProducts,
+    deleteCustomProduct,
   };
 }

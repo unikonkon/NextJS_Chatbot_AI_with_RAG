@@ -5,6 +5,7 @@ import { Database, X } from "lucide-react";
 import { JsonUploader } from "./JsonUploader";
 import { DataPreview } from "./DataPreview";
 import { Button } from "@/components/ui/Button";
+import { useKnowledge } from "@/hooks/useKnowledge";
 
 interface KnowledgeManagerProps {
   onClose: () => void;
@@ -12,6 +13,8 @@ interface KnowledgeManagerProps {
 
 export function KnowledgeManager({ onClose }: KnowledgeManagerProps) {
   const [refreshKey, setRefreshKey] = useState(0);
+  const { status, uploadFile, clearCustomProducts, deleteCustomProduct } =
+    useKnowledge();
 
   const handleDataChange = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -29,8 +32,17 @@ export function KnowledgeManager({ onClose }: KnowledgeManagerProps) {
         </Button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <JsonUploader onDataChange={handleDataChange} />
-        <DataPreview refreshKey={refreshKey} />
+        <JsonUploader
+          status={status}
+          uploadFile={uploadFile}
+          clearCustomProducts={clearCustomProducts}
+          onDataChange={handleDataChange}
+        />
+        <DataPreview
+          refreshKey={refreshKey}
+          customProductIds={status.customProductIds}
+          onDeleteProduct={deleteCustomProduct}
+        />
       </div>
     </div>
   );

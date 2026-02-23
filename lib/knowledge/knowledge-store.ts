@@ -24,6 +24,14 @@ class KnowledgeStore {
   private baseProductsCount = 0;
   private customProductsCount = 0;
 
+  // Base snapshot — restored on resetToBase()
+  private baseProducts: Product[] = [];
+  private baseChunks: Chunk[] = [];
+  private baseEmbeddedChunks: EmbeddedChunk[] = [];
+
+  // Track which product IDs are custom (user-uploaded)
+  private customProductIds = new Set<string>();
+
   /**
    * Load products from KB file + pre-computed embeddings from embeddings.json
    */
@@ -71,6 +79,13 @@ class KnowledgeStore {
 
     this.baseProductsCount = kbProducts.length;
     this.customProductsCount = 0;
+    this.customProductIds.clear();
+
+    // Save base snapshot for resetToBase()
+    this.baseProducts = [...this.products];
+    this.baseChunks = [...this.chunks];
+    this.baseEmbeddedChunks = [...this.embeddedChunks];
+
     this.isInitialized = true;
   }
 
@@ -110,11 +125,37 @@ class KnowledgeStore {
     this.chunks = [...this.chunks, ...newChunks];
     this.embeddedChunks = [...this.embeddedChunks, ...newEmbeddedChunks];
     this.customProductsCount += toAdd.length;
+    for (const p of toAdd) this.customProductIds.add(p.id);
 
     return {
       added: toAdd.length,
       skipped: skipped + (uniqueProducts.length - toAdd.length),
     };
+  }
+
+  removeProduct(id: string): boolean {
+    if (!this.customProductIds.has(id)) return false;
+
+    this.products = this.products.filter((p) => p.id !== id);
+    this.chunks = this.chunks.filter((c) => c.metadata.productId !== id);
+    this.embeddedChunks = this.embeddedChunks.filter(
+      (c) => c.metadata.productId !== id
+    );
+    this.customProductIds.delete(id);
+    this.customProductsCount = this.customProductIds.size;
+    return true;
+  }
+
+  resetToBase(): void {
+    this.products = [...this.baseProducts];
+    this.chunks = [...this.baseChunks];
+    this.embeddedChunks = [...this.baseEmbeddedChunks];
+    this.customProductIds.clear();
+    this.customProductsCount = 0;
+  }
+
+  getCustomProductIds(): string[] {
+    return [...this.customProductIds];
   }
 
   getProducts(): Product[] {

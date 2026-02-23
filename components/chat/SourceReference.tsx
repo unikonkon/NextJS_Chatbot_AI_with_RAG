@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Tag, Loader2, Brain, ChevronDown } from "lucide-react";
+import { Package, Tag, Loader2, Brain, ChevronDown, AlertCircle, X } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { ProductModal } from "@/components/ui/ProductModal";
 import { formatSimilarity } from "@/lib/utils/format";
@@ -21,6 +21,7 @@ export function SourceReference({ sources }: SourceReferenceProps) {
   const [selectedSource, setSelectedSource] = useState<SourceRefType | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [showMatchInfo, setShowMatchInfo] = useState(false);
+  const [notFoundSource, setNotFoundSource] = useState<SourceRefType | null>(null);
 
   const handleClick = useCallback(async (source: SourceRefType) => {
     setLoadingId(source.productId);
@@ -38,9 +39,11 @@ export function SourceReference({ sources }: SourceReferenceProps) {
       if (product) {
         setSelectedProduct(product);
         setSelectedSource(source);
+      } else {
+        setNotFoundSource(source);
       }
     } catch {
-      // silently fail
+      setNotFoundSource(source);
     } finally {
       setLoadingId(null);
     }
@@ -174,6 +177,60 @@ export function SourceReference({ sources }: SourceReferenceProps) {
               setSelectedSource(null);
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Not Found Modal */}
+      <AnimatePresence>
+        {notFoundSource && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-100 flex items-center justify-center p-4"
+            onClick={() => setNotFoundSource(null)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#0c0c0c] shadow-2xl overflow-hidden"
+            >
+              <div className="p-5 space-y-4">
+                <div className="flex justify-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", damping: 12, stiffness: 200 }}
+                    className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center"
+                  >
+                    <AlertCircle size={22} className="text-amber-400" />
+                  </motion.div>
+                </div>
+                <div className="text-center space-y-1.5">
+                  <h4 className="text-sm font-semibold text-white/90">
+                    ไม่พบข้อมูลสินค้า
+                  </h4>
+                  <p className="text-[11px] text-white/50 leading-relaxed">
+                    ไม่พบรายละเอียดของ{" "}
+                    <span className="text-orange-400 font-medium">
+                      {notFoundSource.productName}
+                    </span>{" "}
+                    ในฐานข้อมูลปัจจุบัน — สินค้าอาจถูกลบออกแล้ว หรือ server เริ่มต้นใหม่
+                  </p>
+                </div>
+                <button
+                  onClick={() => setNotFoundSource(null)}
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white/80 transition-colors cursor-pointer"
+                >
+                  ปิด
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>

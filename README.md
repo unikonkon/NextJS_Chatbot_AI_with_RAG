@@ -333,12 +333,20 @@ data: {"type":"done","data":""}
 
 ### `POST /api/knowledge`
 
-จัดการ Knowledge Base — รองรับ append custom products
+จัดการ Knowledge Base — รองรับ append, reset, remove custom products
 
 ```typescript
 // เพิ่มสินค้าใหม่ (server จะ embed ให้)
 { action: "append", products: Product[] }
-→ { productsCount, embeddingsCount }
+→ { success, added, skipped, total, baseProductsCount, customProductsCount }
+
+// รีเซ็ตเป็น base products (ลบ custom ทั้งหมดออกจาก RAM)
+{ action: "reset" }
+→ { success, productsCount, baseProductsCount, customProductsCount: 0 }
+
+// ลบ custom product รายตัว
+{ action: "remove", productId: "string" }
+→ { success, productsCount, baseProductsCount, customProductsCount }
 ```
 
 ### `POST /api/knowledge/upload`
@@ -584,7 +592,10 @@ type EmbeddingsFile = EmbeddedProduct[];  // 100 items, ~4MB
 | Chat history | IndexedDB `chat-history` | ✅ | ✅ |
 | Custom product vectors | Serverless function memory | ⚠️ (หายเมื่อ cold start) | ❌ (re-embed จาก IndexedDB) |
 
-> **หมายเหตุ**: Base products ถูก pre-compute เป็น static file จึงไม่หายเลย ส่วน custom products จะถูก re-embed อัตโนมัติเมื่อ cold start จาก IndexedDB ฝั่ง client
+> **หมายเหตุ**: Base products ถูก pre-compute เป็น static file จึงไม่หายเลย ส่วน custom products จะถูก re-sync อัตโนมัติเมื่อ cold start จาก IndexedDB ฝั่ง client (เรียก `append` ใหม่ → server re-embed ให้)
+>
+> - **ล้างทั้งหมด**: `action: "reset"` → server คืนเป็น base snapshot + ล้าง IndexedDB
+> - **ลบรายตัว**: `action: "remove"` + `productId` → server ลบจาก 3 arrays + ล้าง IndexedDB entry
 
 ---
 

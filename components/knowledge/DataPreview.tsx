@@ -9,6 +9,8 @@ import {
   Eye,
   Tag,
   ChevronDown,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { ProductModal } from "@/components/ui/ProductModal";
@@ -19,9 +21,11 @@ import type { Product } from "@/types/knowledge";
 
 interface DataPreviewProps {
   refreshKey?: number;
+  customProductIds?: string[];
+  onDeleteProduct?: (id: string) => Promise<void>;
 }
 
-export function DataPreview({ refreshKey = 0 }: DataPreviewProps) {
+export function DataPreview({ refreshKey = 0, customProductIds = [], onDeleteProduct }: DataPreviewProps) {
   const [data, setData] = useState<{
     productsCount: number;
     products: Product[];
@@ -30,6 +34,9 @@ export function DataPreview({ refreshKey = 0 }: DataPreviewProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const customIdSet = useMemo(() => new Set(customProductIds), [customProductIds]);
 
   useEffect(() => {
     fetch("/api/knowledge")
@@ -158,9 +165,16 @@ export function DataPreview({ refreshKey = 0 }: DataPreviewProps) {
             >
               {/* Info */}
               <div className="flex-1 min-w-0 space-y-0.5">
-                <p className="text-[11px] text-white/80 font-medium truncate leading-tight">
-                  {product.name}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[11px] text-white/80 font-medium truncate leading-tight">
+                    {product.name}
+                  </p>
+                  {customIdSet.has(product.id) && (
+                    <span className="shrink-0 text-[8px] px-1 py-0.5 rounded bg-orange-500/15 text-orange-400 font-medium leading-none">
+                      custom
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-orange-400 font-semibold">
                     {formatPrice(product.price)}
@@ -178,14 +192,35 @@ export function DataPreview({ refreshKey = 0 }: DataPreviewProps) {
                 </div>
               </div>
 
-              {/* View button */}
-              <button
-                onClick={() => setSelectedProduct(product)}
-                className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg group-hover:bg-white/10 text-white/20 group-hover:text-orange-400 transition-all duration-150 cursor-pointer"
-                title="ดูรายละเอียด"
-              >
-                <Eye size={14} />
-              </button>
+              {/* Actions */}
+              <div className="shrink-0 flex items-center gap-0.5">
+                {customIdSet.has(product.id) && onDeleteProduct && (
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setDeletingId(product.id);
+                      await onDeleteProduct(product.id);
+                      setDeletingId(null);
+                    }}
+                    disabled={deletingId === product.id}
+                    className="flex items-center justify-center w-7 h-7 rounded-lg group-hover:bg-red-500/10 text-white/20 group-hover:text-red-400 transition-all duration-150 cursor-pointer disabled:opacity-50"
+                    title="ลบสินค้านี้"
+                  >
+                    {deletingId === product.id ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={13} />
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedProduct(product)}
+                  className="flex items-center justify-center w-7 h-7 rounded-lg group-hover:bg-white/10 text-white/20 group-hover:text-orange-400 transition-all duration-150 cursor-pointer"
+                  title="ดูรายละเอียด"
+                >
+                  <Eye size={14} />
+                </button>
+              </div>
             </motion.div>
           ))}
         </div>
