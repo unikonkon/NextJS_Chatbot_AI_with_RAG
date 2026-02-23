@@ -5,10 +5,10 @@ let genAI: GoogleGenerativeAI | null = null;
 
 function getGenAI(): GoogleGenerativeAI {
   if (!genAI) {
-    const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
     if (!apiKey) {
       throw new GeminiError(
-        "GOOGLE_GEMINI_API_KEY is not set in environment variables",
+        "GOOGLE_API_KEY is not set in environment variables",
         "CONFIG_ERROR"
       );
     }

@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { Message, ChatState, SourceReference } from "@/types/chat";
 import { generateId } from "@/lib/utils/format";
-import { generateEmbedding } from "@/lib/rag/embeddings-client";
 import {
   createConversation,
   getConversation,
@@ -79,15 +78,11 @@ export function useChat(options?: UseChatOptions) {
       }));
 
       try {
-        // Embed query client-side before sending to API
-        const queryVector = await generateEmbedding(content);
-
         const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: content,
-            queryVector,
             stream: true,
           }),
         });
@@ -153,12 +148,10 @@ export function useChat(options?: UseChatOptions) {
           // Persist to IndexedDB
           const currentConvId = conversationId ?? pendingConvIdRef.current;
           if (currentConvId) {
-            // Update existing conversation
             updateConversation(currentConvId, { messages: finalMessages }).then(
               () => onMessagesUpdated?.()
             );
           } else {
-            // Create new conversation
             const newId = generateId();
             pendingConvIdRef.current = newId;
             const title =

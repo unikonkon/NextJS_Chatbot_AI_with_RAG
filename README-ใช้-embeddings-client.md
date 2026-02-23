@@ -2,7 +2,7 @@
 
 AI Chatbot สำหรับค้นหา เปรียบเทียบ และแนะนำสินค้ายอดนิยมจาก Shopee Thailand
 สร้างด้วย **Next.js 16** + **RAG (Retrieval-Augmented Generation)** Pipeline
-Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Build Time — Deploy ได้บน **Vercel** ทุก Plan (รวม Hobby ฟรี)
+Embedding ทำงานฝั่ง **Client-Side** (Browser/WASM) — Deploy ได้บน Vercel โดยไม่ต้องพึ่ง ONNX Runtime ฝั่ง Server
 
 ---
 
@@ -10,7 +10,6 @@ Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Buil
 
 - [Features](#features)
 - [Tech Stack](#tech-stack)
-- [Architecture Overview](#architecture-overview)
 - [RAG Pipeline](#rag-pipeline)
 - [โครงสร้างโปรเจกต์](#โครงสร้างโปรเจกต์)
 - [API Routes](#api-routes)
@@ -43,7 +42,6 @@ Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Buil
 - Chat History — เก็บประวัติสนทนาใน IndexedDB, สลับบทสนทนาได้
 - Animated Background (Canvas 2D particle effect)
 - รองรับภาษาไทยและอังกฤษ
-- ⚡ **เปิดเว็บพร้อมใช้ทันที** — ไม่ต้องรอโหลด AI Model
 
 ---
 
@@ -61,59 +59,15 @@ Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Buil
 | class-variance-authority | 0.7.1 | Component Variants |
 | clsx + tailwind-merge | — | Conditional ClassNames |
 | react-dropzone | 15 | File Upload (Drag & Drop) |
-| idb | 8 | IndexedDB Wrapper (Chat History, Custom Products) |
+| idb | 8 | IndexedDB Wrapper (Chat History, Custom Products, Cache) |
 
 ### Backend / AI / ML
 | Library | บทบาท |
 |---------|-------|
-| `@google/generative-ai` | **Embedding** (`gemini-embedding-001`) + **Generation** (`gemini-2.0-flash`) — ใช้ API Key เดียว |
+| `@huggingface/transformers` | Embedding Model (**client-side**, browser/WASM) |
+| `@google/generative-ai` | Gemini API สร้างคำตอบ (server-side) |
 | `ml-distance` | Cosine Similarity สำหรับ Semantic Search (server-side) |
 | `zod` (v4) | Schema Validation สำหรับ Knowledge Base |
-
-> **หมายเหตุ**: ไม่ใช้ `@huggingface/transformers` อีกต่อไป — Embedding ทำผ่าน Google API ตอน Build Time แทนการโหลด WASM Model ใน Browser
-
----
-
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  Pre-compute Architecture                    │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  BUILD TIME (npm run build)                                 │
-│  ─────────────────────────                                  │
-│  ┌──────────────────┐    ┌────────────────────┐             │
-│  │ Knowledge Base    │───→│ scripts/pre-embed  │             │
-│  │ (100 สินค้า JSON)  │    │ gemini-embedding-001 │             │
-│  └──────────────────┘    └────────┬───────────┘             │
-│                                   │                         │
-│                          ┌────────▼───────────┐             │
-│                          │ embeddings.json     │             │
-│                          │ 100 × 3072-dim       │             │
-│                          │ (~4MB)            │             │
-│                          └────────────────────┘             │
-│                                                             │
-│  RUNTIME (Vercel Serverless)                                │
-│  ───────────────────────────                                │
-│  ┌──────────────┐  ┌────────────┐  ┌──────────────────┐    │
-│  │ User Query   │─→│ Embed Query│─→│ Cosine Similarity│    │
-│  │              │  │ (API 1 call│  │ (in-function)    │    │
-│  └──────────────┘  │  ~200ms)   │  └───────┬──────────┘    │
-│                    └────────────┘          │ Top-5          │
-│                                  ┌────────▼──────────┐     │
-│                                  │ Gemini Generate   │     │
-│                                  │ (SSE Stream)      │     │
-│                                  └───────────────────┘     │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**ข้อดีหลัก**:
-- ⚡ เปิดเว็บพร้อมใช้ทันที (ไม่ต้องโหลด Model 118MB)
-- 🌐 Deploy บน Vercel ได้ทุก Plan (ไม่ต้อง persistent memory)
-- 🇹🇭 `gemini-embedding-001` รองรับภาษาไทยดีกว่า (3072 dimensions)
-- 🔑 ใช้ Google API Key เดียวกับ Gemini
 
 ---
 
@@ -128,45 +82,45 @@ Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Buil
 │       │                                                      │
 │       ▼                                                      │
 │  ┌────────────────────┐                                      │
-│  │ 1. EMBED QUERY     │  Google gemini-embedding-001         │
-│  │    (SERVER-SIDE)   │  API Route → Google API              │
-│  │    แปลงคำถามเป็น    │  3072-dim vector                     │
-│  │    3072-dim vector │  ~200ms per query                    │
+│  │ 1. EMBED QUERY     │  HuggingFace Transformers            │
+│  │    (CLIENT-SIDE)   │  Browser/WASM                        │
+│  │    แปลงคำถามเป็น    │  paraphrase-multilingual-MiniLM      │
+│  │    384-dim vector   │  pooling=mean, normalize=true        │
 │  └────────┬───────────┘                                      │
-│           │ queryVector                                      │
+│           │ queryVector (sent to server)                      │
 │           ▼                                                  │
 │  ┌────────────────────┐    ┌─────────────────────────┐       │
-│  │ 2. RETRIEVE        │◄───│ Pre-computed Embeddings │       │
-│  │    (SERVER-SIDE)   │    │ embeddings.json (static)│       │
-│  │   Cosine Similarity│    │ 100 products × 3072-dim │       │
-│  │   Top-K = 5        │    └─────────────────────────┘       │
-│  │   Threshold ≥ 0.3  │                                      │
+│  │ 2. RETRIEVE        │◄───│ Knowledge Store          │       │
+│  │    (SERVER-SIDE)   │    │ In-memory singleton      │       │
+│  │    Cosine Similarity│    │ 100+ products (embedded) │       │
+│  │    Top-K = 5        │    └─────────────────────────┘       │
+│  │    Threshold ≥ 0.3  │                                      │
 │  └────────┬───────────┘                                      │
 │           │ top-5 relevant chunks                            │
 │           ▼                                                  │
 │  ┌────────────────────┐                                      │
 │  │ 3. AUGMENT         │  System Prompt (Thai Shopping AI)    │
-│  │    สร้าง prompt     │  + Context (5 สินค้าที่เกี่ยวข้อง)          │
-│  │    รวม context     │  + User Question                     │
+│  │    สร้าง prompt      │  + Context (5 สินค้าที่เกี่ยวข้อง)    │
+│  │    รวม context       │  + User Question                    │
 │  └────────┬───────────┘                                      │
 │           │ augmented prompt                                 │
 │           ▼                                                  │
 │  ┌────────────────────┐                                      │
 │  │ 4. GENERATE        │  Google Gemini API (server-side)     │
-│  │    สร้างคำตอบ       │  Streaming Response (SSE)            │
-│  │    + Source Refs   │  temp=0.7, maxTokens=2048            │
+│  │    สร้างคำตอบ        │  Streaming Response (SSE)            │
+│  │    + Source Refs    │  temp=0.7, maxTokens=2048            │
 │  └────────┬───────────┘                                      │
 │           │                                                  │
 │           ▼                                                  │
-│  [AI Response + Source References + Match Analysis]          │
+│  [AI Response + Source References + Match Analysis]           │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### ขั้นตอนย่อ
 
-1. **Embed (Server)** — แปลงคำถาม user เป็น vector 3072 มิติ ด้วย Google `gemini-embedding-001` ผ่าน API Route (~200ms)
-2. **Retrieve (Server)** — คำนวณ Cosine Similarity กับ pre-computed product vectors จาก `embeddings.json` → เลือก Top-5 ที่ similarity ≥ 0.3
+1. **Embed (Client)** — แปลงคำถาม user เป็น vector 384 มิติ ด้วย HuggingFace `paraphrase-multilingual-MiniLM-L12-v2` **ใน Browser ผ่าน WASM**
+2. **Retrieve (Server)** — รับ `queryVector` จาก client → คำนวณ Cosine Similarity กับ product vectors ใน memory → เลือก Top-5 ที่ similarity ≥ 0.3
 3. **Augment (Server)** — รวม 5 สินค้าที่เกี่ยวข้อง + System Prompt + คำถาม เป็น prompt เดียว
 4. **Generate (Server)** — ส่ง prompt ไป Gemini API → stream คำตอบกลับ client แบบ real-time (SSE)
 5. **Attribute** — แนบ source references (product ID, ชื่อ, similarity %, rank, model info) กลับไปแสดง
@@ -184,14 +138,12 @@ Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Buil
 │   ├── chat/
 │   │   └── page.tsx                  # หน้า Chat หลัก (orchestrates all UI)
 │   └── api/
-│       ├── chat/route.ts             # POST: RAG Pipeline (embed query + retrieve + stream)
+│       ├── chat/route.ts             # POST: RAG Pipeline (stream/non-stream)
+│       ├── embed/route.ts            # POST: ปิดใช้งาน (410 Gone) — ใช้ client-side แทน
 │       ├── health/route.ts           # GET: ตรวจสถานะระบบ
 │       └── knowledge/
-│           ├── route.ts              # GET: สถานะ KB / POST: append custom products
-│           └── upload/route.ts       # POST: Upload JSON file + re-embed
-│
-├── scripts/
-│   └── pre-embed.ts                  # ★ Build-time: สร้าง embeddings.json จาก KB
+│           ├── route.ts              # GET: สถานะ KB / POST: load/store-vectors/append
+│           └── upload/route.ts       # POST: Upload JSON file
 │
 ├── components/
 │   ├── chat/                         # Chat UI Components
@@ -206,7 +158,8 @@ Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Buil
 │   ├── knowledge/                    # Knowledge Base Management
 │   │   ├── KnowledgeManager.tsx      # Sidebar panel จัดการ KB
 │   │   ├── JsonUploader.tsx          # Drag & Drop upload JSON + capacity bar
-│   │   └── DataPreview.tsx           # Preview สินค้า (ค้นหา + กรองหมวดหมู่)
+│   │   ├── DataPreview.tsx           # Preview สินค้า (ค้นหา + กรองหมวดหมู่)
+│   │   └── EmbeddingStatus.tsx       # แสดงสถานะ loading/error/progress (step-based)
 │   │
 │   ├── layout/                       # Layout Components
 │   │   ├── Header.tsx                # Header (status dot, product count, KB toggle)
@@ -224,29 +177,33 @@ Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Buil
 │       └── Toast.tsx                 # Toast notifications (context provider)
 │
 ├── hooks/                            # Custom React Hooks
-│   ├── useChat.ts                    # Chat state + streaming SSE (ส่งแค่ text, ไม่ embed)
+│   ├── useChat.ts                    # Chat state + streaming SSE + client-side embedding
 │   ├── useChatHistory.ts            # Conversation CRUD (IndexedDB)
+│   ├── useRAG.ts                     # RAG initialization + health check + init steps
 │   ├── useKnowledge.ts              # KB upload + custom products + clear
+│   ├── useEmbedding.ts              # Client-side embedding wrapper
 │   └── useScrollToBottom.ts         # Auto-scroll เมื่อมี message ใหม่
 │
 ├── lib/                              # Core Libraries
 │   ├── rag/                          # RAG Pipeline Core
-│   │   ├── pipeline.ts              # ★ Orchestrator: embed query → retrieve → augment → generate
-│   │   ├── embedding-service.ts     # ★ Server-side Google gemini-embedding-001
+│   │   ├── pipeline.ts              # ★ Orchestrator: retrieve → augment → generate
+│   │   ├── embeddings-client.ts     # ★ Client-side HuggingFace WASM embedding
+│   │   ├── embedding.ts             # Server-side stub (boolean flag เท่านั้น)
 │   │   ├── retriever.ts             # ★ Cosine similarity search + filters
 │   │   ├── generator.ts             # ★ Gemini API (stream + non-stream) + GeminiError
 │   │   ├── chunker.ts               # Product → text chunk conversion
 │   │   └── prompt-template.ts       # System prompt + augmented prompt builder
 │   │
 │   ├── knowledge/                    # Knowledge Base Management
-│   │   ├── knowledge-store.ts       # โหลด pre-computed embeddings.json
+│   │   ├── knowledge-store.ts       # Singleton store (products, chunks, embeddings, max 500)
 │   │   ├── json-loader.ts           # Load KB from file / parse JSON string
 │   │   └── schema-validator.ts      # Zod v4 schema validation
 │   │
 │   ├── db/                           # Client-side Storage (IndexedDB)
-│   │   ├── indexed-db.ts            # IndexedDB wrapper (2 stores: history, products)
+│   │   ├── indexed-db.ts            # IndexedDB wrapper (3 stores: cache, history, products)
 │   │   ├── chat-history.ts          # Conversation CRUD operations
-│   │   └── custom-products.ts       # Custom product persistence
+│   │   ├── custom-products.ts       # Custom product persistence
+│   │   └── embedding-cache.ts       # Embedding cache interface
 │   │
 │   └── utils/                        # Utilities
 │       ├── constants.ts              # Defaults (TOP_K, THRESHOLD, models, questions, MAX=500)
@@ -260,7 +217,6 @@ Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Buil
 │
 ├── public/data/
 │   ├── shopee-products-knowledge-base.json   # ★ Knowledge Base (100 สินค้า, 15 หมวดหมู่)
-│   ├── embeddings.json                       # ★ Pre-computed vectors (100 × 3072-dim, ~4MB)
 │   └── metadata.json                         # Metadata ของ KB
 │
 ├── next.config.ts                    # Empty config (Turbopack is default in Next.js 16)
@@ -271,33 +227,19 @@ Embedding ใช้ **Google `gemini-embedding-001`** Pre-compute ตอน Buil
 └── .env.local                        # API Keys & configuration
 ```
 
-### สิ่งที่เปลี่ยนจาก Client-side Architecture
-
-```
-❌ ลบออก                              ✅ เพิ่ม/แก้ไข
-─────────────────────────────         ─────────────────────────────
-@huggingface/transformers             scripts/pre-embed.ts (build-time)
-lib/rag/embeddings-client.ts          lib/rag/embedding-service.ts (Google API)
-lib/rag/embedding.ts (stub)           public/data/embeddings.json (static)
-lib/db/embedding-cache.ts             —
-hooks/useRAG.ts                       —
-hooks/useEmbedding.ts                 —
-components/knowledge/EmbeddingStatus  —
-app/api/embed/route.ts (410 Gone)     —
-```
-
 ---
 
 ## API Routes
 
 ### `POST /api/chat`
 
-RAG Pipeline หลัก — รับคำถาม → embed → ค้นหา → สร้างคำตอบ (ทุกอย่างทำบน server)
+RAG Pipeline หลัก — รับคำถาม + queryVector → ค้นหา → สร้างคำตอบ
 
 ```typescript
-// Request — ส่งแค่ข้อความ ไม่ต้องส่ง vector
+// Request
 {
   message: "หูฟังตัดเสียงรบกวนตัวไหนดี?",
+  queryVector: number[384],             // client-side embedding (จำเป็น)
   stream: true,                         // true = SSE streaming
   options?: { topK?: 5, temperature?: 0.7 }
 }
@@ -316,7 +258,11 @@ data: {"type":"done","data":""}
 }
 ```
 
-> **หมายเหตุ**: ไม่ต้องส่ง `queryVector` จาก client อีกต่อไป — server จะ embed query เองผ่าน `gemini-embedding-001`
+> **หมายเหตุ**: ต้องส่ง `queryVector` ที่ embed ฝั่ง client มาด้วย ไม่เช่นนั้นจะได้ 400 Bad Request
+
+### `POST /api/embed` (ปิดใช้งาน)
+
+ส่งกลับ HTTP 410 Gone — Embedding ทำฝั่ง client ทั้งหมด
 
 ### `GET /api/knowledge`
 
@@ -326,6 +272,7 @@ data: {"type":"done","data":""}
 {
   isInitialized: true,
   productsCount: 100,
+  chunksCount: 100,
   embeddingsCount: 100,
   products: Product[]
 }
@@ -333,21 +280,29 @@ data: {"type":"done","data":""}
 
 ### `POST /api/knowledge`
 
-จัดการ Knowledge Base — รองรับ append custom products
+จัดการ Knowledge Base — รองรับ 4 actions:
 
 ```typescript
-// เพิ่มสินค้าใหม่ (server จะ embed ให้)
-{ action: "append", products: Product[] }
-→ { productsCount, embeddingsCount }
+// โหลด KB จากไฟล์ → ส่ง chunkTexts กลับให้ client embed
+{ action: "initialize" }  → { chunkTexts: string[] }
+{ action: "load" }        → { chunkTexts: string[] }
+
+// รับ vectors ที่ client embed แล้ว → เก็บใน memory
+{ action: "store-vectors", vectors: number[][] }
+→ { embeddingsCount, productsCount, isReady: true }
+
+// เพิ่มสินค้าใหม่ (พร้อม vectors ที่ embed แล้ว)
+{ action: "append", products: Product[], vectors: number[][] }
+→ { productsCount, chunksCount, embeddingsCount }
 ```
 
 ### `POST /api/knowledge/upload`
 
-Upload ไฟล์ JSON ใหม่ (multipart/form-data) — server จะ embed ให้ทั้งหมด
+Upload ไฟล์ JSON ใหม่ (multipart/form-data)
 
 ```typescript
-// Response
-{ success: true, documentsCount: 50, embeddingsCount: 50 }
+// Response → ส่ง chunkTexts กลับให้ client embed
+{ success: true, documentsCount: 100, chunksCount: 100, chunkTexts: string[] }
 ```
 
 ### `GET /api/health`
@@ -357,9 +312,8 @@ Upload ไฟล์ JSON ใหม่ (multipart/form-data) — server จะ em
 ```typescript
 {
   status: "ok",
-  embeddingMode: "server-side (pre-computed)",
-  embeddingModel: "gemini-embedding-001",
-  embeddingDimensions: 3072,
+  embeddingMode: "client-side",
+  embeddingModel: "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
   geminiModel: "gemini-2.0-flash",
   knowledgeBaseSize: 100,
   embeddingsCount: 100,
@@ -384,6 +338,7 @@ RootLayout (app/layout.tsx)
         ├── ChatSidebar          ← Left panel: conversation history (IndexedDB)
         ├── Header               ← Status dot + product count + KB toggle + new chat
         ├── ChatContainer
+        │   ├── EmbeddingStatus  ← Step-based progress bar (ถ้ายังไม่ ready)
         │   ├── ScrollArea
         │   │   ├── Welcome      ← SVG bot + ข้อความต้อนรับ (เมื่อยังไม่มี message)
         │   │   ├── ChatMessage[]
@@ -399,8 +354,6 @@ RootLayout (app/layout.tsx)
                 └── DataPreview   ← ค้นหา + กรองหมวดหมู่ + ProductModal
 ```
 
-> **หมายเหตุ**: ไม่มี `EmbeddingStatus` step-based progress bar อีกต่อไป — เปิดเว็บมาพร้อมใช้ทันที
-
 ### Design System
 
 - **Theme**: Dark mode (`--background: #09090b`, `--foreground: #fafafa`)
@@ -414,24 +367,46 @@ RootLayout (app/layout.tsx)
 
 ## Data Flow
 
-### Build Time — Pre-compute Embeddings
+### Initialization Flow (Cold Start)
 
 ```
-npm run build
-    │
-    ├─ 1. npm run pre-embed (scripts/pre-embed.ts)
-    │      │
-    │      ├─ อ่าน public/data/shopee-products-knowledge-base.json
-    │      ├─ แปลง 100 สินค้า → 100 text chunks
-    │      ├─ เรียก Google gemini-embedding-001 API (batch)
-    │      ├─ สร้าง 100 × 3072-dim vectors
-    │      └─ บันทึก public/data/embeddings.json (~4MB)
-    │
-    └─ 2. next build
-           └─ embeddings.json ถูก bundle เป็น static asset
+Browser                              Server (Next.js)
+  │                                      │
+  │── GET /api/health ────────────────→  │
+  │←── { isReady: false } ───────────── │
+  │                                      │
+  │  [Step: loading-kb]                  │
+  │── POST /api/knowledge ───────────→   │
+  │   { action: "initialize" }           │
+  │                            loadKnowledgeBaseFromFile()
+  │                            productsToChunks()
+  │←── { chunkTexts: string[] } ──────  │
+  │                                      │
+  │  [Step: loading-model]               │
+  │  loadModel() — WASM download         │
+  │  (~118MB, ครั้งแรกเท่านั้น)             │
+  │                                      │
+  │  [Step: embedding]                   │
+  │  generateEmbeddings(chunkTexts)      │
+  │  (384-dim per chunk, sequential)     │
+  │                                      │
+  │  [Step: storing]                     │
+  │── POST /api/knowledge ───────────→   │
+  │   { action: "store-vectors",         │
+  │     vectors: number[][] }            │
+  │                            store.storeVectors(vectors)
+  │←── { embeddingsCount, isReady } ──  │
+  │                                      │
+  │  [Step: custom-products]             │
+  │  ดึง custom products จาก IndexedDB    │
+  │  embed + POST action="append"        │
+  │                                      │
+  │  ✅ Ready!                            │
 ```
 
-### Runtime — Chat Message Flow (เปิดเว็บพร้อมใช้ทันที)
+> **Fast Path**: ถ้า refresh หน้าแล้ว server ยังเก็บ vectors ไว้ (`GET /api/health` → `isReady: true`) จะข้ามทุกขั้นตอนและพร้อมใช้ทันที
+
+### Chat Message Flow
 
 ```
 User พิมพ์คำถาม
@@ -439,15 +414,12 @@ User พิมพ์คำถาม
     ▼
 ChatInput.tsx → useChat.sendMessage()
     │
-    ▼ POST /api/chat { message, stream: true }
-    │                                    ← ส่งแค่ text ไม่ต้องส่ง vector
+    ├─ generateEmbedding(message)  ←── Client-side (Browser WASM)
+    │   └─ 384-dim queryVector
     │
-    ├─ embedQuery(message)               ←── Server: gemini-embedding-001 (~200ms)
-    │   └─ 3072-dim queryVector
+    ▼ POST /api/chat { message, queryVector, stream: true }
     │
-    ├─ loadEmbeddings()                  ←── Server: import embeddings.json (static)
-    │
-    ├─ retrieveTopK(queryVector, embeddings)
+    ├─ retrieveTopK(queryVector, embeddedChunks)     ←── Server-side
     │   └─ cosine similarity → filter ≥ 0.3 → sort → top-5
     │
     ├─ buildAugmentedPrompt(question, top5Results)
@@ -472,27 +444,10 @@ Zod validation (client-side)
     │
     ├─ saveCustomProducts() → IndexedDB (persist across refresh)
     │
-    └─ POST /api/knowledge { action: "append", products: Product[] }
-        │
-        ├─ productsToChunks()
-        ├─ embedBatch(chunkTexts)  ←── Server: gemini-embedding-001
-        └─ appendToRuntime()       ←── เก็บใน serverless function memory
-                                       (หายเมื่อ cold start → re-append จาก IndexedDB)
-```
-
-### เปรียบเทียบ UX ก่อน-หลัง
-
-```
-──── ก่อน (Client-side WASM) ────────────────────
-เปิดเว็บ → [Checking...]
-         → [Loading Knowledge Base...] 1-2s
-         → [Loading AI Model...] 15-45s  ← ❌ คอขวด!
-         → [Creating Embeddings...] 5-10s
-         → [Storing Vectors...] 1s
-         → ✅ Ready                Total: 30-60 วินาที
-
-──── หลัง (Pre-computed Build Time) ─────────────
-เปิดเว็บ → ✅ Ready                Total: <1 วินาที
+    ├─ productsToChunks() → generateEmbeddings() (Browser WASM)
+    │
+    └─ POST /api/knowledge { action: "append", products, vectors }
+        └─ store.appendProducts() — deduplicate + MAX_PRODUCTS cap (500)
 ```
 
 ---
@@ -554,37 +509,17 @@ interface Product {
 }
 ```
 
-### Pre-computed Embedding Schema
-
-```typescript
-// public/data/embeddings.json
-interface EmbeddedProduct {
-  text: string;            // chunk text (ข้อความรวมของสินค้า)
-  metadata: {
-    productId: string;
-    productName: string;
-    category: string;
-    brand: string;
-    price: number;
-  };
-  vector: number[];        // 3072-dim embedding from gemini-embedding-001
-}
-
-type EmbeddingsFile = EmbeddedProduct[];  // 100 items, ~4MB
-```
-
 ---
 
 ## Data Persistence
 
-| ข้อมูล | ที่เก็บ | คงอยู่หลัง Refresh? | คงอยู่หลัง Deploy? |
-|--------|--------|-------------------|-------------------|
-| Base product vectors | `embeddings.json` (static file) | ✅ | ✅ |
-| Custom products | IndexedDB `custom-products` | ✅ | ✅ |
-| Chat history | IndexedDB `chat-history` | ✅ | ✅ |
-| Custom product vectors | Serverless function memory | ⚠️ (หายเมื่อ cold start) | ❌ (re-embed จาก IndexedDB) |
-
-> **หมายเหตุ**: Base products ถูก pre-compute เป็น static file จึงไม่หายเลย ส่วน custom products จะถูก re-embed อัตโนมัติเมื่อ cold start จาก IndexedDB ฝั่ง client
+| ข้อมูล | ที่เก็บ | คงอยู่หลัง Refresh? |
+|--------|--------|-------------------|
+| Product vectors (base KB) | Server memory (singleton) | ✅ (ถ้า server process ยังทำงาน) |
+| Custom products | IndexedDB `custom-products` | ✅ (re-embed + append on init) |
+| Chat history | IndexedDB `chat-history` | ✅ |
+| Embedding cache | IndexedDB `embedding-cache` | ✅ (schema มี แต่ยังไม่ได้ใช้งาน) |
+| WASM model | Browser cache | ✅ (หลังดาวน์โหลดครั้งแรก) |
 
 ---
 
@@ -601,25 +536,15 @@ npm install
 สร้างไฟล์ `.env.local`:
 
 ```env
-GOOGLE_API_KEY=your_google_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
-EMBEDDING_MODEL=gemini-embedding-001
+GOOGLE_GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash-lite
+EMBEDDING_MODEL=Xenova/paraphrase-multilingual-MiniLM-L12-v2
 TOP_K=5
 SIMILARITY_THRESHOLD=0.3
 MAX_CONTEXT_LENGTH=4000
 ```
 
-> **หมายเหตุ**: ใช้ `GOOGLE_API_KEY` ตัวเดียวสำหรับทั้ง Embedding (`gemini-embedding-001`) และ Generation (`gemini-2.0-flash`)
-
-### 3. Pre-compute Embeddings (ครั้งแรก หรือเมื่อแก้ไข KB)
-
-```bash
-npm run pre-embed
-```
-
-สร้างไฟล์ `public/data/embeddings.json` (~4MB, 100 สินค้า × 3072 dimensions)
-
-### 4. Run Development Server
+### 3. Run Development Server
 
 ```bash
 npm run dev
@@ -627,37 +552,13 @@ npm run dev
 
 เปิด [http://localhost:3000](http://localhost:3000) → จะ redirect ไป `/chat`
 
-> ⚡ **เปิดเว็บมาพร้อมใช้ทันที** — ไม่ต้องรอโหลด AI Model หรือสร้าง Embeddings
+> **หมายเหตุ**: การเปิดครั้งแรกจะใช้เวลา 30-60 วินาทีในการดาวน์โหลด Embedding Model (~118MB) และสร้าง embeddings สำหรับ 100 สินค้า ครั้งต่อไป model จะถูก cache ใน browser
 
-### 5. Build for Production
+### 4. Build for Production
 
 ```bash
-npm run build    # รวม pre-embed + next build
+npm run build
 npm start
-```
-
-### 6. Deploy to Vercel
-
-```bash
-vercel deploy
-```
-
-- ✅ ใช้ได้ทุก Plan (Hobby, Pro, Enterprise)
-- ✅ `pre-embed` รันตอน build อัตโนมัติ
-- ✅ ไม่ต้อง persistent memory
-
-### Scripts
-
-```json
-{
-  "scripts": {
-    "dev": "next dev --turbopack",
-    "pre-embed": "tsx scripts/pre-embed.ts",
-    "build": "npm run pre-embed && next build",
-    "start": "next start",
-    "lint": "next lint"
-  }
-}
 ```
 
 ---
@@ -666,21 +567,17 @@ vercel deploy
 
 | ตัวแปร | ค่าเริ่มต้น | คำอธิบาย |
 |--------|-----------|---------|
-| `GOOGLE_API_KEY` | — | **(จำเป็น)** Google API Key สำหรับ Embedding + Generation |
+| `GOOGLE_GEMINI_API_KEY` | — | **(จำเป็น)** API Key ของ Google Gemini |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Model ที่ใช้สร้างคำตอบ |
-| `EMBEDDING_MODEL` | `gemini-embedding-001` | Model สำหรับ embedding (Google API) |
+| `EMBEDDING_MODEL` | `Xenova/paraphrase-multilingual-MiniLM-L12-v2` | Model สำหรับ embedding (client-side) |
 | `TOP_K` | `5` | จำนวนสินค้าที่ดึงมาเป็น context |
 | `SIMILARITY_THRESHOLD` | `0.3` | คะแนน cosine similarity ขั้นต่ำ |
 | `MAX_CONTEXT_LENGTH` | `4000` | ความยาวสูงสุดของ context (tokens) |
 
-### Embedding Model เปรียบเทียบ
+### Embedding Model ที่รองรับ
 
-| คุณสมบัติ | `gemini-embedding-001` (ใช้อยู่) | `Xenova/all-MiniLM-L6-v2` (เดิม) |
-|-----------|-------------------------------|----------------------------------|
-| ทำงานที่ | Server (Google API) | Browser (WASM) |
-| Dimensions | 3072 | 384 |
-| ภาษาไทย | ✅ ดีมาก | ⚠️ พอใช้ |
-| Max Tokens | 2,048 | 256 |
-| ขนาด Download | ไม่ต้องโหลด | ~118MB |
-| ค่าใช้จ่าย | ฟรี tier + จ่ายเพิ่ม | ฟรีตลอด |
-| เวลาเปิดเว็บ | ⚡ <1 วินาที | ⏳ 30-60 วินาที |
+| Model | Dimensions | ภาษาไทย | ขนาด |
+|-------|-----------|---------|------|
+| `Xenova/all-MiniLM-L6-v2` | 384 | พอใช้ | ~23MB |
+| `Xenova/multilingual-e5-small` | 384 | ดี | ~118MB |
+| `Xenova/paraphrase-multilingual-MiniLM-L12-v2` | 384 | ดีมาก | ~118MB |

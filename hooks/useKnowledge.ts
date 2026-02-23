@@ -8,8 +8,6 @@ import {
   clearCustomProducts as clearIDBCustomProducts,
 } from "@/lib/db/custom-products";
 import { KnowledgeBaseSchema, ProductSchema } from "@/lib/knowledge/schema-validator";
-import { productsToChunks } from "@/lib/rag/chunker";
-import { generateEmbeddings } from "@/lib/rag/embeddings-client";
 import type { Product } from "@/types/knowledge";
 import { z } from "zod";
 
@@ -34,7 +32,7 @@ export function useKnowledge() {
     maxProducts: MAX_PRODUCTS,
   });
 
-  // Auto-fetch status on mount so labels reflect server state
+  // Auto-fetch status on mount
   useEffect(() => {
     fetch("/api/knowledge")
       .then((res) => res.json())
@@ -48,21 +46,6 @@ export function useKnowledge() {
         }));
       })
       .catch(() => {});
-  }, []);
-
-  const appendToServer = useCallback(async (products: Product[], vectors: number[][]) => {
-    const res = await fetch("/api/knowledge", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "append", products, vectors }),
-    });
-
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Append failed");
-    }
-
-    return await res.json();
   }, []);
 
   const uploadFile = useCallback(
@@ -114,14 +97,22 @@ export function useKnowledge() {
 
         setStatus((prev) => ({
           ...prev,
-          uploadProgress: `กำลังฝัง Embeddings (${products.length} สินค้า)...`,
+          uploadProgress: `กำลัง Embed + เพิ่มสินค้า (${products.length} รายการ)...`,
         }));
 
-        // Embed client-side
-        const chunks = productsToChunks(products);
-        const vectors = await generateEmbeddings(chunks.map((c) => c.text));
+        // Server-side embed via append API
+        const res = await fetch("/api/knowledge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "append", products }),
+        });
 
-        const data = await appendToServer(products, vectors);
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Append failed");
+        }
+
+        const data = await res.json();
 
         setStatus((prev) => ({
           ...prev,
@@ -145,7 +136,7 @@ export function useKnowledge() {
         return null;
       }
     },
-    [status.maxProducts, status.productsCount, appendToServer]
+    [status.maxProducts, status.productsCount]
   );
 
   const loadCustomProducts = useCallback(async () => {
@@ -153,55 +144,45 @@ export function useKnowledge() {
       const customProducts = await getAllCustomProducts();
       if (customProducts.length === 0) return;
 
-      // Embed client-side
-      const chunks = productsToChunks(customProducts);
-      const vectors = await generateEmbeddings(chunks.map((c) => c.text));
+      // Server-side embed
+      const res = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "append", products: customProducts }),
+      });
 
-      const data = await appendToServer(customProducts, vectors);
-      setStatus((prev) => ({
-        ...prev,
-        productsCount: data.total,
-        baseProductsCount: data.baseProductsCount,
-        customProductsCount: data.customProductsCount,
-      }));
+      if (res.ok) {
+        const data = await res.json();
+        setStatus((prev) => ({
+          ...prev,
+          productsCount: data.total,
+          baseProductsCount: data.baseProductsCount,
+          customProductsCount: data.customProductsCount,
+        }));
+      }
     } catch {
-      // silently fail — custom products will not be loaded
+      // silently fail
     }
-  }, [appendToServer]);
+  }, []);
 
   const clearCustomProducts = useCallback(async () => {
     await clearIDBCustomProducts();
     // Re-initialize base only
     try {
-      // Step 1: Load KB
-      const loadRes = await fetch("/api/knowledge", {
+      const res = await fetch("/api/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "initialize" }),
       });
 
-      if (loadRes.ok) {
-        const loadData = await loadRes.json();
-
-        // Step 2: Embed client-side
-        const vectors = await generateEmbeddings(loadData.chunkTexts);
-
-        // Step 3: Store vectors
-        const storeRes = await fetch("/api/knowledge", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "store-vectors", vectors }),
-        });
-
-        if (storeRes.ok) {
-          const storeData = await storeRes.json();
-          setStatus((prev) => ({
-            ...prev,
-            productsCount: storeData.productsCount,
-            baseProductsCount: storeData.baseProductsCount ?? storeData.productsCount,
-            customProductsCount: 0,
-          }));
-        }
+      if (res.ok) {
+        const data = await res.json();
+        setStatus((prev) => ({
+          ...prev,
+          productsCount: data.productsCount,
+          baseProductsCount: data.productsCount,
+          customProductsCount: 0,
+        }));
       }
     } catch {
       // silently fail

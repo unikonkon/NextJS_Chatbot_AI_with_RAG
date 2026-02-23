@@ -2,10 +2,25 @@ import { NextRequest } from "next/server";
 import { getKnowledgeStore } from "@/lib/knowledge/knowledge-store";
 import { loadKnowledgeBaseFromFile } from "@/lib/knowledge/json-loader";
 import { validateProduct } from "@/lib/knowledge/schema-validator";
+import { productsToChunks } from "@/lib/rag/chunker";
+import { embedBatch } from "@/lib/rag/embedding-service";
 import type { Product } from "@/types/knowledge";
+
+/**
+ * Auto-initialize KB + pre-computed embeddings if not already done
+ */
+async function ensureInitialized() {
+  const store = getKnowledgeStore();
+  if (!store.hasEmbeddings()) {
+    const kb = await loadKnowledgeBaseFromFile();
+    await store.initializeFromPrecomputed(kb.products);
+  }
+}
 
 export async function GET() {
   try {
+    await ensureInitialized();
+
     const store = getKnowledgeStore();
     const status = store.getStatus();
 
@@ -25,7 +40,6 @@ export async function POST(request: NextRequest) {
     let body: {
       action?: string;
       products?: unknown[];
-      vectors?: number[][];
     } = {};
     try {
       body = await request.json();
@@ -37,67 +51,23 @@ export async function POST(request: NextRequest) {
     }
     const { action } = body;
 
+    // Auto-init on any POST
+    await ensureInitialized();
     const store = getKnowledgeStore();
 
-    // Load products from file, create chunks, return chunk texts for client-side embedding
+    // Initialize action (kept for backward compat, now just returns status)
     if (action === "load" || action === "initialize") {
-      const kb = await loadKnowledgeBaseFromFile();
-      await store.loadFromKnowledgeBase(kb);
-      const chunkTexts = store.getChunkTexts();
-
+      const status = store.getStatus();
       return Response.json({
         success: true,
-        message: "Knowledge base loaded (awaiting embeddings from client)",
-        productsCount: kb.products.length,
-        chunksCount: chunkTexts.length,
-        chunkTexts,
+        message: "Knowledge base loaded with pre-computed embeddings",
+        productsCount: status.productsCount,
+        embeddingsCount: status.embeddingsCount,
       });
     }
 
-    // Store pre-computed vectors from client
-    if (action === "store-vectors") {
-      if (!store.getStatus().isInitialized) {
-        return Response.json(
-          { error: "Knowledge base not loaded. Call with action='load' first." },
-          { status: 400 }
-        );
-      }
-
-      if (!body.vectors || !Array.isArray(body.vectors)) {
-        return Response.json(
-          { error: "vectors array is required" },
-          { status: 400 }
-        );
-      }
-
-      store.storeVectors(body.vectors);
-
-      return Response.json({
-        success: true,
-        message: "Embeddings stored",
-        embeddingsCount: store.getEmbeddedChunks().length,
-        productsCount: store.getStatus().productsCount,
-        baseProductsCount: store.getStatus().baseProductsCount,
-        customProductsCount: store.getStatus().customProductsCount,
-        maxProducts: store.getStatus().maxProducts,
-      });
-    }
-
-    if (action === "embed") {
-      return Response.json(
-        { error: "Server-side embedding is not supported. Embed client-side and use 'store-vectors'." },
-        { status: 400 }
-      );
-    }
-
+    // Append custom products — server embeds them
     if (action === "append") {
-      if (!store.getStatus().isInitialized) {
-        return Response.json(
-          { error: "Knowledge base not initialized. Initialize first." },
-          { status: 400 }
-        );
-      }
-
       if (!Array.isArray(body.products) || body.products.length === 0) {
         return Response.json(
           { error: "products array is required for append action." },
@@ -123,18 +93,10 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const vectors = body.vectors && Array.isArray(body.vectors) ? body.vectors : undefined;
-
-      if (!vectors) {
-        // Return chunk texts so client can embed them
-        const chunkTexts = store.getAppendChunkTexts(validProducts);
-        return Response.json({
-          success: true,
-          needsEmbedding: true,
-          chunkTexts,
-          validProductsCount: validProducts.length,
-        });
-      }
+      // Server-side embed
+      const chunks = productsToChunks(validProducts);
+      const chunkTexts = chunks.map((c) => c.text);
+      const vectors = await embedBatch(chunkTexts);
 
       const result = await store.appendProducts(validProducts, vectors);
       const status = store.getStatus();
@@ -152,7 +114,7 @@ export async function POST(request: NextRequest) {
     }
 
     return Response.json(
-      { error: "Invalid action. Use 'load', 'initialize', 'store-vectors', or 'append'" },
+      { error: "Invalid action. Use 'initialize' or 'append'" },
       { status: 400 }
     );
   } catch (error) {

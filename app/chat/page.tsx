@@ -7,13 +7,11 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { ChatSidebar } from "@/components/layout/ChatSidebar";
 import { ThreeBackground } from "@/components/layout/ThreeBackground";
 import { ToastProvider } from "@/components/ui/Toast";
-import { useRAG } from "@/hooks/useRAG";
 import { useChatHistory } from "@/hooks/useChatHistory";
 
 export default function ChatPage() {
   const [showKnowledge, setShowKnowledge] = useState(false);
   const [showChatSidebar, setShowChatSidebar] = useState(true);
-  const { status: ragStatus } = useRAG();
   const {
     conversations,
     activeId,
@@ -73,8 +71,8 @@ export default function ChatPage() {
               onToggleKnowledge={toggleKnowledge}
               onClearChat={clearChat}
               onToggleSidebar={toggleChatSidebar}
-              isReady={ragStatus.isReady}
-              productsCount={ragStatus.productsCount}
+              isReady={true}
+              productsCount={0}
             />
             <div className="flex-1 min-h-0">
               <ChatContainer

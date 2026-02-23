@@ -5,18 +5,9 @@ import type { Message } from "@/types/chat";
 import type { Product } from "@/types/knowledge";
 
 const DB_NAME = "rag-chatbot";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export interface RAGDatabase {
-  "embedding-cache": {
-    key: string;
-    value: {
-      text: string;
-      vector: number[];
-      model: string;
-      createdAt: number;
-    };
-  };
   "chat-history": {
     key: string;
     value: {
@@ -39,8 +30,9 @@ export function getDB() {
   if (!dbPromise) {
     dbPromise = openDB<RAGDatabase>(DB_NAME, DB_VERSION, {
       upgrade(db) {
-        if (!db.objectStoreNames.contains("embedding-cache")) {
-          db.createObjectStore("embedding-cache");
+        // Remove embedding-cache store if it exists from old version
+        if (db.objectStoreNames.contains("embedding-cache")) {
+          db.deleteObjectStore("embedding-cache");
         }
         if (!db.objectStoreNames.contains("chat-history")) {
           db.createObjectStore("chat-history");
@@ -52,42 +44,4 @@ export function getDB() {
     });
   }
   return dbPromise;
-}
-
-export async function getCachedEmbedding(
-  text: string
-): Promise<number[] | null> {
-  try {
-    const db = await getDB();
-    const result = await db.get("embedding-cache", text);
-    return result?.vector ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export async function setCachedEmbedding(
-  text: string,
-  vector: number[],
-  model: string
-): Promise<void> {
-  try {
-    const db = await getDB();
-    await db.put(
-      "embedding-cache",
-      { text, vector, model, createdAt: Date.now() },
-      text
-    );
-  } catch {
-    // silently fail for cache
-  }
-}
-
-export async function clearEmbeddingCache(): Promise<void> {
-  try {
-    const db = await getDB();
-    await db.clear("embedding-cache");
-  } catch {
-    // silently fail
-  }
 }

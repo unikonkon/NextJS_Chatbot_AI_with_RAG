@@ -1,12 +1,8 @@
-import { NextRequest } from "next/server";
-
-// Server-side embedding is no longer supported.
-// Use @huggingface/transformers client-side via lib/rag/embeddings-client.ts
-export async function POST(request: NextRequest) {
+// This endpoint is deprecated. Embedding is now done server-side in /api/chat.
+export async function POST() {
   return Response.json(
     {
-      error:
-        "Server-side embedding is not available. Use client-side embedding with @huggingface/transformers instead.",
+      error: "This endpoint is deprecated. Embedding is handled server-side in /api/chat.",
     },
     { status: 410 }
   );

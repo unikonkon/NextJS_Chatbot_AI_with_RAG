@@ -1,5 +1,6 @@
 import { retrieveTopK } from "./retriever";
 import { generateResponse, generateResponseStream } from "./generator";
+import { embedQuery } from "./embedding-service";
 import { buildAugmentedPrompt, type PromptContext } from "./prompt-template";
 import { getKnowledgeStore } from "@/lib/knowledge/knowledge-store";
 import type { RAGResult, RAGOptions } from "@/types/rag";
@@ -10,6 +11,7 @@ import {
   DEFAULT_TEMPERATURE,
   DEFAULT_MAX_CONTEXT_LENGTH,
   EMBEDDING_MODEL,
+  EMBEDDING_DIMENSIONS,
 } from "@/lib/utils/constants";
 
 const defaultOptions: RAGOptions = {
@@ -21,12 +23,10 @@ const defaultOptions: RAGOptions = {
 
 export async function runRAGPipeline(
   question: string,
-  queryVector: number[],
   options: Partial<RAGOptions> = {}
 ): Promise<RAGResult> {
   const opts = { ...defaultOptions, ...options };
 
-  // Step 1: Retrieve relevant chunks using pre-computed query vector
   const store = getKnowledgeStore();
   const embeddedChunks = store.getEmbeddedChunks();
 
@@ -39,6 +39,10 @@ export async function runRAGPipeline(
     };
   }
 
+  // Step 1: Embed query server-side
+  const queryVector = await embedQuery(question);
+
+  // Step 2: Retrieve relevant chunks
   const retrievalResults = retrieveTopK(
     queryVector,
     embeddedChunks,
@@ -55,7 +59,7 @@ export async function runRAGPipeline(
     };
   }
 
-  // Step 2: Build augmented prompt
+  // Step 3: Build augmented prompt
   const products = store.getProducts();
   const promptCtx: PromptContext = {
     productsCount: products.length,
@@ -63,11 +67,10 @@ export async function runRAGPipeline(
   };
   const prompt = buildAugmentedPrompt(question, retrievalResults, promptCtx);
 
-  // Step 3: Generate response
+  // Step 4: Generate response
   const answer = await generateResponse(prompt, opts.temperature);
 
-  // Step 4: Build sources with match explanation
-  const vectorDimensions = queryVector.length;
+  // Step 5: Build sources
   const sources: SourceReference[] = retrievalResults.map((r, i) => ({
     productId: r.chunk.metadata.productId,
     productName: r.chunk.metadata.productName,
@@ -79,7 +82,7 @@ export async function runRAGPipeline(
     embeddingModel: EMBEDDING_MODEL,
     similarityThreshold: opts.similarityThreshold,
     totalCandidates: embeddedChunks.length,
-    dimensions: vectorDimensions,
+    dimensions: EMBEDDING_DIMENSIONS,
   }));
 
   const confidence =
@@ -96,7 +99,6 @@ export async function runRAGPipeline(
 
 export async function* runRAGPipelineStream(
   question: string,
-  queryVector: number[],
   options: Partial<RAGOptions> = {}
 ): AsyncGenerator<{ type: "text" | "sources" | "done"; data: string }> {
   const opts = { ...defaultOptions, ...options };
@@ -113,6 +115,10 @@ export async function* runRAGPipelineStream(
     return;
   }
 
+  // Step 1: Embed query server-side
+  const queryVector = await embedQuery(question);
+
+  // Step 2: Retrieve
   const retrievalResults = retrieveTopK(
     queryVector,
     embeddedChunks,
@@ -129,6 +135,7 @@ export async function* runRAGPipelineStream(
     return;
   }
 
+  // Step 3: Build prompt
   const products = store.getProducts();
   const promptCtx: PromptContext = {
     productsCount: products.length,
@@ -136,7 +143,7 @@ export async function* runRAGPipelineStream(
   };
   const prompt = buildAugmentedPrompt(question, retrievalResults, promptCtx);
 
-  const vectorDimensions = queryVector.length;
+  // Yield sources
   const sources: SourceReference[] = retrievalResults.map((r, i) => ({
     productId: r.chunk.metadata.productId,
     productName: r.chunk.metadata.productName,
@@ -148,11 +155,12 @@ export async function* runRAGPipelineStream(
     embeddingModel: EMBEDDING_MODEL,
     similarityThreshold: opts.similarityThreshold,
     totalCandidates: embeddedChunks.length,
-    dimensions: vectorDimensions,
+    dimensions: EMBEDDING_DIMENSIONS,
   }));
 
   yield { type: "sources", data: JSON.stringify(sources) };
 
+  // Step 4: Generate + stream
   for await (const text of generateResponseStream(prompt, opts.temperature)) {
     yield { type: "text", data: text };
   }

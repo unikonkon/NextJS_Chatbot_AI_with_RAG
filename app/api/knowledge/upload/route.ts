@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { parseKnowledgeBaseJSON } from "@/lib/knowledge/json-loader";
+import { loadKnowledgeBaseFromFile } from "@/lib/knowledge/json-loader";
 import { getKnowledgeStore } from "@/lib/knowledge/knowledge-store";
+import { productsToChunks } from "@/lib/rag/chunker";
+import { embedBatch } from "@/lib/rag/embedding-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,18 +27,26 @@ export async function POST(request: NextRequest) {
     const text = await file.text();
     const kb = parseKnowledgeBaseJSON(text);
 
+    // Re-initialize store with base KB + pre-computed embeddings
     const store = getKnowledgeStore();
-    await store.loadFromKnowledgeBase(kb);
+    const baseKb = await loadKnowledgeBaseFromFile();
+    await store.initializeFromPrecomputed(baseKb.products);
 
-    // Return chunk texts for client-side embedding
-    const chunkTexts = store.getChunkTexts();
+    // Embed and append the uploaded products server-side
+    const chunks = productsToChunks(kb.products);
+    const chunkTexts = chunks.map((c) => c.text);
+    const vectors = await embedBatch(chunkTexts);
+
+    const result = await store.appendProducts(kb.products, vectors);
+    const status = store.getStatus();
 
     return Response.json({
       success: true,
-      needsEmbedding: true,
       documentsCount: kb.products.length,
-      chunksCount: chunkTexts.length,
-      chunkTexts,
+      embeddingsCount: status.embeddingsCount,
+      added: result.added,
+      skipped: result.skipped,
+      total: status.productsCount,
     });
   } catch (error) {
     console.error("Upload API error:", error);

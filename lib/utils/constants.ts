@@ -5,7 +5,8 @@ export const DEFAULT_TEMPERATURE = 0.7;
 export const DEFAULT_MAX_CONTEXT_LENGTH = 4000;
 
 export const EMBEDDING_MODEL =
-  process.env.EMBEDDING_MODEL || "Xenova/paraphrase-multilingual-MiniLM-L12-v2";
+  process.env.EMBEDDING_MODEL || "gemini-embedding-001";
+export const EMBEDDING_DIMENSIONS = 3072;
 export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 export const SUGGESTED_QUESTIONS = [

@@ -1,54 +1,85 @@
-import type { Product, Chunk, EmbeddedChunk, KnowledgeBase } from "@/types/knowledge";
+import { readFile } from "fs/promises";
+import { join } from "path";
+import type { Product, Chunk, EmbeddedChunk } from "@/types/knowledge";
 import { productsToChunks } from "@/lib/rag/chunker";
-import { setEmbeddingsReady } from "@/lib/rag/embedding";
 import { MAX_PRODUCTS } from "@/lib/utils/constants";
+
+interface EmbeddedProduct {
+  text: string;
+  metadata: {
+    productId: string;
+    productName: string;
+    category: string;
+    brand: string;
+    price: number;
+  };
+  vector: number[];
+}
 
 class KnowledgeStore {
   private products: Product[] = [];
   private chunks: Chunk[] = [];
   private embeddedChunks: EmbeddedChunk[] = [];
   private isInitialized = false;
-  private isEmbedding = false;
   private baseProductsCount = 0;
   private customProductsCount = 0;
 
-  async loadFromKnowledgeBase(kb: KnowledgeBase): Promise<void> {
-    this.products = kb.products;
-    this.chunks = productsToChunks(kb.products);
-    this.baseProductsCount = kb.products.length;
+  /**
+   * Load products from KB file + pre-computed embeddings from embeddings.json
+   */
+  async initializeFromPrecomputed(kbProducts: Product[]): Promise<void> {
+    // Read pre-computed embeddings
+    const embeddingsPath = join(process.cwd(), "public", "data", "embeddings.json");
+    const raw = await readFile(embeddingsPath, "utf-8");
+    const embeddedProducts: EmbeddedProduct[] = JSON.parse(raw);
+
+    // Build chunks + embedded chunks from pre-computed data
+    this.products = kbProducts;
+    this.chunks = productsToChunks(kbProducts);
+
+    // Map pre-computed embeddings to EmbeddedChunk format
+    this.embeddedChunks = embeddedProducts.map((ep) => {
+      const chunk = this.chunks.find(
+        (c) => c.metadata.productId === ep.metadata.productId
+      );
+
+      if (chunk) {
+        return { ...chunk, vector: ep.vector };
+      }
+
+      // Fallback: create chunk from embedded product data
+      return {
+        id: `chunk-${ep.metadata.productId}`,
+        productId: ep.metadata.productId,
+        text: ep.text,
+        metadata: {
+          productId: ep.metadata.productId,
+          productName: ep.metadata.productName,
+          category: ep.metadata.category,
+          brand: ep.metadata.brand,
+          price: ep.metadata.price,
+          originalPrice: 0,
+          discount: null,
+          rating: 0,
+          soldCount: 0,
+          isMall: false,
+          freeShipping: false,
+        },
+        vector: ep.vector,
+      };
+    });
+
+    this.baseProductsCount = kbProducts.length;
     this.customProductsCount = 0;
     this.isInitialized = true;
   }
 
-  getChunkTexts(): string[] {
-    return this.chunks.map((c) => c.text);
-  }
-
-  storeVectors(vectors: number[][]): void {
-    if (vectors.length !== this.chunks.length) {
-      throw new Error(
-        `Vectors count (${vectors.length}) must match chunks count (${this.chunks.length})`
-      );
-    }
-
-    this.embeddedChunks = this.chunks.map((chunk, i) => ({
-      ...chunk,
-      vector: vectors[i],
-    }));
-
-    setEmbeddingsReady(true);
-  }
-
   async appendProducts(
     newProducts: Product[],
-    vectors?: number[][]
+    vectors: number[][]
   ): Promise<{ added: number; skipped: number }> {
     if (!this.isInitialized) {
-      throw new Error("Knowledge base not initialized. Call loadFromKnowledgeBase first.");
-    }
-
-    if (this.isEmbedding) {
-      throw new Error("Embedding is in progress. Please wait.");
+      throw new Error("Knowledge base not initialized.");
     }
 
     const existingIds = new Set(this.products.map((p) => p.id));
@@ -64,42 +95,26 @@ class KnowledgeStore {
 
     const newChunks = productsToChunks(toAdd);
 
-    if (vectors) {
-      if (vectors.length !== newChunks.length) {
-        throw new Error(
-          `Vectors count (${vectors.length}) must match new chunks count (${newChunks.length})`
-        );
-      }
-
-      const newEmbeddedChunks = newChunks.map((chunk, i) => ({
-        ...chunk,
-        vector: vectors[i],
-      }));
-
-      this.products = [...this.products, ...toAdd];
-      this.chunks = [...this.chunks, ...newChunks];
-      this.embeddedChunks = [...this.embeddedChunks, ...newEmbeddedChunks];
-      this.customProductsCount += toAdd.length;
-    } else {
-      // No vectors provided — just store products/chunks without embeddings
-      this.products = [...this.products, ...toAdd];
-      this.chunks = [...this.chunks, ...newChunks];
-      this.customProductsCount += toAdd.length;
+    if (vectors.length !== newChunks.length) {
+      throw new Error(
+        `Vectors count (${vectors.length}) must match new chunks count (${newChunks.length})`
+      );
     }
+
+    const newEmbeddedChunks = newChunks.map((chunk, i) => ({
+      ...chunk,
+      vector: vectors[i],
+    }));
+
+    this.products = [...this.products, ...toAdd];
+    this.chunks = [...this.chunks, ...newChunks];
+    this.embeddedChunks = [...this.embeddedChunks, ...newEmbeddedChunks];
+    this.customProductsCount += toAdd.length;
 
     return {
       added: toAdd.length,
       skipped: skipped + (uniqueProducts.length - toAdd.length),
     };
-  }
-
-  getAppendChunkTexts(products: Product[]): string[] {
-    const existingIds = new Set(this.products.map((p) => p.id));
-    const uniqueProducts = products.filter((p) => !existingIds.has(p.id));
-    const available = MAX_PRODUCTS - this.products.length;
-    const toAdd = uniqueProducts.slice(0, available);
-    const chunks = productsToChunks(toAdd);
-    return chunks.map((c) => c.text);
   }
 
   getProducts(): Product[] {
@@ -121,7 +136,6 @@ class KnowledgeStore {
   getStatus() {
     return {
       isInitialized: this.isInitialized,
-      isEmbedding: this.isEmbedding,
       productsCount: this.products.length,
       chunksCount: this.chunks.length,
       embeddingsCount: this.embeddedChunks.length,

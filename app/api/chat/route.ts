@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { runRAGPipeline, runRAGPipelineStream } from "@/lib/rag/pipeline";
 import { getKnowledgeStore } from "@/lib/knowledge/knowledge-store";
+import { loadKnowledgeBaseFromFile } from "@/lib/knowledge/json-loader";
 import { GeminiError } from "@/lib/rag/generator";
 
 function geminiErrorToStatus(code: string): number {
@@ -18,14 +19,25 @@ function geminiErrorToStatus(code: string): number {
     case "CONFIG_ERROR":
       return 500;
     default:
-      return 502; // Bad Gateway - upstream (Gemini) failed
+      return 502;
+  }
+}
+
+/**
+ * Auto-initialize KB + pre-computed embeddings on first request
+ */
+async function ensureInitialized() {
+  const store = getKnowledgeStore();
+  if (!store.hasEmbeddings()) {
+    const kb = await loadKnowledgeBaseFromFile();
+    await store.initializeFromPrecomputed(kb.products);
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, queryVector, options, stream } = body;
+    const { message, options, stream } = body;
 
     if (!message || typeof message !== "string") {
       return Response.json(
@@ -34,17 +46,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!queryVector || !Array.isArray(queryVector)) {
-      return Response.json(
-        { error: "queryVector is required (embed the message client-side first)", code: "MISSING_VECTOR" },
-        { status: 400 }
-      );
-    }
+    // Auto-init on first request (cold start)
+    await ensureInitialized();
 
     const store = getKnowledgeStore();
     if (!store.hasEmbeddings()) {
       return Response.json(
-        { error: "Knowledge base not initialized. Please initialize first. ( กรุณาโหลดข้อมูล Knowledge base ก่อนใช้งาน )", code: "KB_NOT_READY" },
+        { error: "Knowledge base not initialized.", code: "KB_NOT_READY" },
         { status: 503 }
       );
     }
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
       const readable = new ReadableStream({
         async start(controller) {
           try {
-            for await (const chunk of runRAGPipelineStream(message, queryVector, options)) {
+            for await (const chunk of runRAGPipelineStream(message, options)) {
               const data = `data: ${JSON.stringify(chunk)}\n\n`;
               controller.enqueue(encoder.encode(data));
             }
@@ -82,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Non-streaming response
-    const result = await runRAGPipeline(message, queryVector, options);
+    const result = await runRAGPipeline(message, options);
 
     return Response.json({
       answer: result.answer,

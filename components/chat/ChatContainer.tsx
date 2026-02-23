@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
@@ -8,9 +7,7 @@ import { TypingIndicator } from "./TypingIndicator";
 import { SuggestedQuestions } from "./SuggestedQuestions";
 import { ScrollArea } from "@/components/ui/ScrollArea";
 import { useChat } from "@/hooks/useChat";
-import { useRAG } from "@/hooks/useRAG";
 import { useScrollToBottom } from "@/hooks/useScrollToBottom";
-import { EmbeddingStatus } from "@/components/knowledge/EmbeddingStatus";
 
 interface ChatContainerProps {
   conversationId: string | null;
@@ -28,42 +25,18 @@ export function ChatContainer({
     onConversationCreated,
     onMessagesUpdated,
   });
-  const { status: ragStatus, initialize } = useRAG();
   const { ref: scrollRef } = useScrollToBottom<HTMLDivElement>([messages]);
 
-  // Defer initialization so the UI renders first (prevents blank/frozen screen)
-  useEffect(() => {
-    if (!ragStatus.isReady && !ragStatus.isInitializing) {
-      const id = requestAnimationFrame(() => {
-        initialize();
-      });
-      return () => cancelAnimationFrame(id);
-    }
-  }, []);
-
-  const showSuggestions = messages.length === 0 && ragStatus.isReady;
+  const showSuggestions = messages.length === 0;
 
   return (
     <div className="flex flex-col h-full md:mx-8 mx-1">
-      {/* Status bar */}
-      {!ragStatus.isReady && (
-        <EmbeddingStatus
-          isInitializing={ragStatus.isInitializing}
-          error={ragStatus.error}
-          productsCount={ragStatus.productsCount}
-          embeddingsCount={ragStatus.embeddingsCount}
-          step={ragStatus.step}
-          embeddingProgress={ragStatus.embeddingProgress}
-          onRetry={initialize}
-        />
-      )}
-
       {/* Messages area */}
       <ScrollArea
         ref={scrollRef}
         className="flex-1 px-4 py-6 space-y-4 overflow-y-auto"
       >
-        {messages.length === 0 && ragStatus.isReady && (
+        {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full min-h-[300px] gap-4">
             <div className="text-center space-y-4">
               {/* Animated AI Chatbot SVG */}
@@ -106,7 +79,6 @@ export function ChatContainer({
                   </defs>
 
                   {/* Connection lines (data flowing to bot) */}
-                  {/* Left data node line */}
                   <motion.line
                     x1="90" y1="70" x2="200" y2="110"
                     stroke="url(#grad-violet)" strokeWidth="1.5" strokeDasharray="6 4"
@@ -121,7 +93,6 @@ export function ChatContainer({
                     animate={{ pathLength: 1, opacity: [0.2, 0.5, 0.2] }}
                     transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
                   />
-                  {/* Right data node line */}
                   <motion.line
                     x1="410" y1="65" x2="300" y2="108"
                     stroke="url(#grad-orange)" strokeWidth="1.5" strokeDasharray="6 4"
@@ -138,7 +109,6 @@ export function ChatContainer({
                   />
 
                   {/* Left data nodes */}
-                  {/* Database icon node */}
                   <motion.g
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -150,13 +120,11 @@ export function ChatContainer({
                       animate={{ scale: [1, 1.05, 1] }}
                       transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                     />
-                    {/* DB icon */}
                     <ellipse cx="75" cy="58" rx="10" ry="4" fill="none" stroke="rgba(139,92,246,0.6)" strokeWidth="1.5" />
                     <path d="M65 58 v12 c0 2.2 4.5 4 10 4 s10-1.8 10-4 v-12" fill="none" stroke="rgba(139,92,246,0.6)" strokeWidth="1.5" />
                     <ellipse cx="75" cy="64" rx="10" ry="4" fill="none" stroke="rgba(139,92,246,0.3)" strokeWidth="1" />
                   </motion.g>
 
-                  {/* Document node */}
                   <motion.g
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -168,14 +136,12 @@ export function ChatContainer({
                       animate={{ scale: [1, 1.06, 1] }}
                       transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
                     />
-                    {/* File icon */}
                     <rect x="58" y="140" width="14" height="18" rx="2" fill="none" stroke="rgba(16,185,129,0.6)" strokeWidth="1.5" />
                     <path d="M62 147 h6 M62 151 h4" stroke="rgba(16,185,129,0.4)" strokeWidth="1" />
                     <path d="M68 140 l4 4 h-4 z" fill="rgba(16,185,129,0.3)" stroke="rgba(16,185,129,0.6)" strokeWidth="1" />
                   </motion.g>
 
                   {/* Right data nodes */}
-                  {/* Search/product node */}
                   <motion.g
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -187,13 +153,11 @@ export function ChatContainer({
                       animate={{ scale: [1, 1.05, 1] }}
                       transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
                     />
-                    {/* Cart icon */}
                     <path d="M412 53 h3 l2 12 h10 l2-8 h-12" fill="none" stroke="rgba(249,115,22,0.6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     <circle cx="419" cy="68" r="1.5" fill="rgba(249,115,22,0.6)" />
                     <circle cx="426" cy="68" r="1.5" fill="rgba(249,115,22,0.6)" />
                   </motion.g>
 
-                  {/* Embedding/vector node */}
                   <motion.g
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -205,7 +169,6 @@ export function ChatContainer({
                       animate={{ scale: [1, 1.06, 1] }}
                       transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut", delay: 0.7 }}
                     />
-                    {/* Vector/neural icon */}
                     <circle cx="425" cy="148" r="2.5" fill="rgba(139,92,246,0.5)" />
                     <circle cx="435" cy="148" r="2.5" fill="rgba(139,92,246,0.5)" />
                     <circle cx="430" cy="160" r="2.5" fill="rgba(139,92,246,0.5)" />
@@ -220,20 +183,16 @@ export function ChatContainer({
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.8, type: "spring", damping: 15 }}
                   >
-                    {/* Outer pulse ring */}
                     <motion.circle
                       cx="250" cy="110" r="50"
                       fill="none" stroke="url(#grad-orange)" strokeWidth="1"
                       animate={{ r: [50, 58, 50], opacity: [0.3, 0.1, 0.3] }}
                       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                     />
-                    {/* Bot body bg */}
                     <circle cx="250" cy="110" r="42" fill="rgba(249,115,22,0.06)" stroke="rgba(249,115,22,0.2)" strokeWidth="1.5" />
 
-                    {/* Bot head */}
                     <rect x="228" y="88" width="44" height="32" rx="10" fill="rgba(249,115,22,0.12)" stroke="url(#grad-orange)" strokeWidth="1.5" filter="url(#glow-soft)" />
 
-                    {/* Eyes */}
                     <motion.circle
                       cx="241" cy="102" r="4"
                       fill="url(#grad-orange)"
@@ -247,7 +206,6 @@ export function ChatContainer({
                       transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
                     />
 
-                    {/* Smile */}
                     <motion.path
                       d="M243 111 q7 5 14 0"
                       fill="none" stroke="rgba(249,115,22,0.5)" strokeWidth="1.5" strokeLinecap="round"
@@ -255,7 +213,6 @@ export function ChatContainer({
                       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                     />
 
-                    {/* Antenna */}
                     <line x1="250" y1="88" x2="250" y2="78" stroke="rgba(249,115,22,0.4)" strokeWidth="1.5" />
                     <motion.circle
                       cx="250" cy="75" r="3"
@@ -264,13 +221,11 @@ export function ChatContainer({
                       transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                     />
 
-                    {/* Chat bubble hint */}
                     <motion.g
                       animate={{ y: [0, -2, 0] }}
                       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                     >
                       <rect x="262" y="126" width="28" height="14" rx="7" fill="rgba(249,115,22,0.1)" stroke="rgba(249,115,22,0.25)" strokeWidth="1" />
-                      {/* Dots */}
                       <motion.circle
                         cx="271" cy="133" r="1.5" fill="rgba(249,115,22,0.5)"
                         animate={{ opacity: [0.3, 1, 0.3] }}
@@ -346,7 +301,7 @@ export function ChatContainer({
         <ChatInput
           onSend={sendMessage}
           isLoading={isLoading}
-          disabled={!ragStatus.isReady}
+          disabled={false}
         />
       </div>
     </div>
